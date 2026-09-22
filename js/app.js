@@ -521,4 +521,25 @@
        if (document.getElementById('seances-table')) initEdtPage();
        else if (document.getElementById('add-student-form')) initGestionPage();
        else if (document.getElementById('student-search-table')) initReecherchePage();
+
+       // Écoute du WebSocket pour recevoir les scans NFC (Render ou Local)
+       if (typeof io !== 'undefined') {
+           const socket = io();
+
+           socket.on('connect', () => {
+               console.log('Connecté au serveur WebSocket NFC !');
+           });
+
+           socket.on('nfc-scan', (data) => {
+               console.log('Badge NFC reçu :', data.uid);
+               const inputNFC = document.getElementById('new-id-nfc');
+               if (inputNFC) {
+                   inputNFC.value = data.uid;
+                   inputNFC.style.border = '2px solid #10b981';
+                   setTimeout(() => {
+                       inputNFC.style.border = '';
+                   }, 1500);
+               }
+           });
+       }
    });

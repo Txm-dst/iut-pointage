@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion — IUT Pointage</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="login-page">
+
+    <div class="login-card">
+        <div class="login-mark">IUT</div>
+        <h1>Bienvenue 👋</h1>
+        <p class="login-sub">Connectez-vous pour accéder au pointage et à l'emploi du temps.</p>
+
+        <form id="login-form" onsubmit="handleLogin(event)" novalidate>
+            <div class="form-group">
+                <label for="username">Identifiant</label>
+                <input type="text" id="username" placeholder="Ex : admin" autocomplete="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Mot de passe</label>
+                <input type="password" id="password" autocomplete="current-password" required>
+            </div>
+            <p id="login-error" class="login-error" hidden></p>
+            <button type="submit" class="btn btn-primary btn-block">Se connecter</button>
+        </form>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

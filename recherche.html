@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <script>
+        if (sessionStorage.getItem('iutAuth') !== '1') { location.replace('index.html'); }
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recherche — IUT Pointage</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="brand"><span class="brand-mark">IUT</span> IUT Pointage</div>
+        <div class="nav-links">
+            <a class="nav-link" href="edt.html">🕒 Emploi du temps</a>
+            <a class="nav-link nav-violet-active" href="recherche.html">🔍 Recherche</a>
+            <a class="nav-link" href="gestion.html">👥 Gestion des étudiants</a>
+        </div>
+        <button class="btn btn-danger" onclick="logout()">Déconnexion</button>
+    </nav>
+
+    <header class="page-hero page-hero-violet">
+        <div class="page-hero-inner">
+            <span class="page-hero-icon">🔍</span>
+            <div>
+                <h1>Rechercher des étudiants</h1>
+                <p>Recherchez par nom, prénom, numéro étudiant ou identifiant de carte NFC.</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="content">
+        <div class="card search-box">
+            <div class="form-row">
+                <input type="text" id="search-input" placeholder="Rechercher par nom, prénom, n° étu ou ID NFC..." onkeyup="filterStudents()">
+                <select id="group-filter" onchange="filterStudents()">
+                    <option value="">Tous les groupes</option>
+                </select>
+            </div>
+        </div>
+        <div class="card">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>N° étu</th>
+                        <th>Nom</th>
+                        <th>Prénom</th>
+                        <th>Groupe</th>
+                        <th>ID NFC</th>
+                    </tr>
+                </thead>
+                <tbody id="student-search-table"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

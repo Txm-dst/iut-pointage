@@ -7,7 +7,10 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 
-// Configuration Socket.IO (autorise toutes les origines)
+// URL officielle du flux iCal ADE ULCO
+const ADE_ICAL_URL = "https://edt.univ-littoral.fr/jsp/custom/modules/plannings/OnEMEVnr.shu?days=60";
+
+// Configuration Socket.IO
 const io = new Server(server, {
     cors: {
         origin: "*",
@@ -18,15 +21,51 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-// Servir les fichiers statiques à la racine du projet
+// Fichiers statiques
 app.use(express.static(__dirname));
 
-// Endpoint appelé par le script Python du Raspberry Pi
+// --- ROUTE 1 : PROXY ADE (EMPLOI DU TEMPS) ---
+let cacheICS = null;
+let lastFetch = 0;
+const CACHE_DURATION = 15 * 60 * 1000; // Cache 15 min
+
+app.get('/api/edt', async (req, res) => {
+    const forceRefresh = req.query.refresh === '1';
+    const now = Date.now();
+
+    if (!forceRefresh && cacheICS && (now - lastFetch < CACHE_DURATION)) {
+        return res.type('text/calendar').send(cacheICS);
+    }
+
+    try {
+        const response = await fetch(ADE_ICAL_URL, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Erreur ADE: ${response.status}`);
+        }
+
+        const data = await response.text();
+        cacheICS = data;
+        lastFetch = now;
+
+        res.type('text/calendar').send(data);
+    } catch (error) {
+        console.error("Erreur Proxy ADE :", error.message);
+        if (cacheICS) {
+            return res.setHeader('X-Cache', 'STALE').type('text/calendar').send(cacheICS);
+        }
+        res.status(502).json({ error: "Impossible de joindre les serveurs ADE" });
+    }
+});
+
+// --- ROUTE 2 : SCAN NFC (RASPBERRY PI) ---
 app.post('/api/nfc', (req, res) => {
     const { uid } = req.body;
     console.log(`[NFC SCAN DETECTÉ] UID Card: ${uid}`);
     
-    // Diffusion en temps réel à toutes les pages web ouvertes
+    // Diffusion temps réel vers Render / Navigateur
     io.emit('nfc-scan', { uid: String(uid) });
     
     res.json({ status: 'success', uid });
@@ -36,8 +75,8 @@ io.on('connection', (socket) => {
     console.log('Client Web connecté ID:', socket.id);
 });
 
-// Port dynamique pour Render (ou 3000 en local)
+// Port dynamique Render
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Serveur prêt et en écoute sur le port ${PORT}`);
+    console.log(`Serveur prêt sur le port ${PORT}`);
 });

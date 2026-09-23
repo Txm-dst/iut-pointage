@@ -3,9 +3,29 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const { Pool } = require('pg');
 
 const app = express();
 const server = http.createServer(app);
+
+// Configuration de la connexion PostgreSQL
+const pool = new Pool({
+  user: process.env.PGUSER || 'postgres',
+  host: process.env.PGHOST || 'localhost',
+  database: process.env.PGDATABASE || 'pointage_iut',
+  password: process.env.PGPASSWORD || 'Tom62800', // Ton mot de passe postgres local
+  port: process.env.PGPORT || 5432,
+});
+
+// Test de connexion à la base de données
+pool.connect((err, client, release) => {
+  if (err) {
+    console.error('Erreur de connexion à PostgreSQL :', err.stack);
+  } else {
+    console.log('Connecté avec succès à la base PostgreSQL pointage_iut');
+    release();
+  }
+});
 
 // URL officielle du flux iCal ADE ULCO
 const ADE_ICAL_URL = "https://edt.univ-littoral.fr/jsp/custom/modules/plannings/OnEMEVnr.shu?days=60";
@@ -27,7 +47,7 @@ app.use(express.static(__dirname));
 // --- ROUTE 1 : PROXY ADE (EMPLOI DU TEMPS) ---
 let cacheICS = null;
 let lastFetch = 0;
-const CACHE_DURATION = 15 * 60 * 1000; // Cache 15 min
+const CACHE_DURATION = 15 * 60 * 1000;
 
 app.get('/api/edt', async (req, res) => {
     const forceRefresh = req.query.refresh === '1';
@@ -60,28 +80,49 @@ app.get('/api/edt', async (req, res) => {
     }
 });
 
-// --- ROUTE 2 : SCAN NFC (RASPBERRY PI) ---
-app.post('/api/nfc', (req, res) => {
-    const { uid } = req.body;
-    console.log(`[NFC SCAN DETECTÉ] UID Card: ${uid}`);
+// --- ROUTE 2 : POINTAGE / SCAN NFC (RASPBERRY PI) ---
+app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
+    const { uid, id_nfc, timestamp } = req.body;
+    const nfc_code = String(uid || id_nfc);
     
-    // Diffusion temps réel vers Render / Navigateur
-    io.emit('nfc-scan', { uid: String(uid) });
-    
-    res.json({ status: 'success', uid });
+    console.log(`[POINTAGE REÇU] Badge UID: ${nfc_code}`);
+
+    try {
+        // Enregistrement réel en BDD PostgreSQL
+        const insertQuery = `
+            INSERT INTO pointages (id_badge, horodatage)
+            VALUES ($1, COALESCE($2::timestamp, NOW()))
+            RETURNING *;
+        `;
+        const result = await pool.query(insertQuery, [nfc_code, timestamp || null]);
+
+        // Diffusion temps réel en WebSockets vers l'interface web
+        io.emit('nfc-scan', { uid: nfc_code, pointage: result.rows[0] });
+
+        res.json({ status: 'success', data: result.rows[0] });
+    } catch (err) {
+        console.error('Erreur lors de l insertion en BDD :', err.message);
+        res.status(500).json({ error: 'Erreur BDD', details: err.message });
+    }
 });
 
-// --- ROUTES 3 : SYNCHRONISATION RASPBERRY PI ---
-// Envoi des étudiants au Raspberry Pi
-app.get('/api/etudiants', (req, res) => {
-    // Si tu utilises une BDD PostgreSQL sur Render, remplace cette réponse par la requête BDD
-    res.json([]);
+// --- ROUTES 3 : SYNCHRONISATION ÉTUDIANTS / ENSEIGNANTS ---
+app.get('/api/etudiants', async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT * FROM etudiants');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// Envoi des professeurs au Raspberry Pi
-app.get('/api/professeurs', (req, res) => {
-    // Si tu utilises une BDD PostgreSQL sur Render, remplace cette réponse par la requête BDD
-    res.json([]);
+app.get('/api/professeurs', async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT * FROM enseignants');
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 io.on('connection', (socket) => {

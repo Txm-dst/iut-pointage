@@ -89,18 +89,33 @@ app.get('/api/edt', async (req, res) => {
 
 // --- ROUTE 2 : POINTAGE / SCAN NFC (RASPBERRY PI) ---
 app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
-    const { uid, id_nfc, timestamp } = req.body;
+    // Le Raspberry Pi peut envoyer son propre id_boitier (ex: 1)
+    const { uid, id_nfc, timestamp, id_boitier } = req.body;
     const nfc_code = String(uid || id_nfc);
+    const boitier_id = id_boitier || 1; // Boîtier 1 par défaut si non spécifié
     
-    console.log(`[POINTAGE REÇU] Badge UID: ${nfc_code}`);
+    console.log(`[POINTAGE REÇU] Badge UID: ${nfc_code} depuis Boîtier: ${boitier_id}`);
 
     try {
+        // 1. Recherche de l'étudiant correspondant à cet UID
+        const etuRes = await pool.query('SELECT id FROM etudiants WHERE id_nfc = $1', [nfc_code]);
+        let id_etudiant = etuRes.rows.length > 0 ? etuRes.rows[0].id : null;
+
+        // 2. Si ce n'est pas un étudiant, recherche dans la table enseignants
+        if (!id_etudiant) {
+            const profRes = await pool.query('SELECT id FROM enseignants WHERE id_nfc = $1', [nfc_code]);
+            if (profRes.rows.length > 0) {
+                id_etudiant = profRes.rows[0].id;
+            }
+        }
+
+        // 3. Insertion enrichie dans la table pointages
         const insertQuery = `
-            INSERT INTO pointages (id_badge, horodatage)
-            VALUES ($1, COALESCE($2::timestamp, NOW()))
+            INSERT INTO pointages (id_badge, horodatage, id_etudiant, id_boitier)
+            VALUES ($1, COALESCE($2::timestamp, NOW()), $3, $4)
             RETURNING *;
         `;
-        const result = await pool.query(insertQuery, [nfc_code, timestamp || null]);
+        const result = await pool.query(insertQuery, [nfc_code, timestamp || null, id_etudiant, boitier_id]);
 
         // Diffusion WebSockets vers l'interface web
         io.emit('nfc-scan', { uid: nfc_code, pointage: result.rows[0] });
@@ -148,15 +163,15 @@ app.post('/api/etudiants', async (req, res) => {
     }
 });
 
-// --- ROUTE 5 : CRÉATION ENSEIGNANT (INSERTION SUPABASE) ---
+// --- ROUTE 5 : Création enseignant
 app.post('/api/professeurs', async (req, res) => {
-    const { nom, prenom, numero_etu, id_nfc } = req.body;
+    const { nom, prenom, numero_etu, id_nfc, id_boitier } = req.body;
     try {
         const query = `
-            INSERT INTO enseignants (nom, prenom, numero_etu, id_nfc)
-            VALUES ($1, $2, $3, $4) RETURNING *;
+            INSERT INTO enseignants (nom, prenom, numero_etu, id_nfc, id_boitier)
+            VALUES ($1, $2, $3, $4, $5) RETURNING *;
         `;
-        const { rows } = await pool.query(query, [nom, prenom, numero_etu, id_nfc]);
+        const { rows } = await pool.query(query, [nom, prenom, numero_etu, id_nfc, id_boitier || null]);
         console.log('[BDD] Enseignant créé :', rows[0]);
         res.status(201).json(rows[0]);
     } catch (err) {

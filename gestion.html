@@ -71,9 +71,14 @@
                     <input type="text" id="new-nom" placeholder="Nom" required>
                     <input type="text" id="new-prenom" placeholder="Prénom" required>
                     
-                    <!-- Le champ Groupe est masqué dynamiquement si mode Prof -->
+                    <!-- Champ Groupe (masqué dynamiquement si mode Prof) -->
                     <div id="groupe-input-container">
                         <input type="text" id="new-groupe" placeholder="Groupe / Affectation (ex: BUT3-TD2-PA)">
+                    </div>
+
+                    <!-- Champ ID Boîtier (affiché dynamiquement si mode Prof) -->
+                    <div id="boitier-input-container" style="display: none;">
+                        <input type="number" id="new-id-boitier" min="1" placeholder="ID Boîtier Raspberry Pi (ex: 1)">
                     </div>
                 </div>
 
@@ -96,6 +101,7 @@
                         <th>Prénom</th>
                         <th>Rôle</th>
                         <th id="th-groupe">Groupe</th>
+                        <th id="th-boitier" style="display: none;">ID Boîtier</th>
                         <th>ID NFC</th>
                         <th>Actions</th>
                     </tr>

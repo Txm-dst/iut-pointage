@@ -123,6 +123,7 @@
                Prenom: e.prenom || e.Prenom,
                Groupe: e.groupe || e.Groupe || 'BUT1-TD1',
                id_nfc: e.id_nfc || '',
+               id_boitier: null,
                role: 'eleve'
            })) : [];
    
@@ -133,6 +134,7 @@
                Prenom: p.prenom || p.Prenom,
                Groupe: "Enseignant",
                id_nfc: p.id_nfc || '',
+               id_boitier: p.id_boitier || 'Non attribué',
                role: 'prof'
            })) : [];
    
@@ -469,17 +471,22 @@
        document.getElementById('table-title').innerText = mode === 'eleve' ? 'Liste des étudiants' : 'Liste des professeurs';
    
        const containerGroupe = document.getElementById('groupe-input-container');
+       const containerBoitier = document.getElementById('boitier-input-container');
        const thGroupe = document.getElementById('th-groupe');
+       const thBoitier = document.getElementById('th-boitier');
        const inputGroupe = document.getElementById('new-groupe');
    
        if (mode === 'prof') {
            containerGroupe.style.display = 'none';
+           containerBoitier.style.display = 'block';
            thGroupe.style.display = 'none';
-           inputGroupe.removeAttribute('required');
+           thBoitier.style.display = '';
+           if (inputGroupe) inputGroupe.removeAttribute('required');
        } else {
            containerGroupe.style.display = 'block';
+           containerBoitier.style.display = 'none';
            thGroupe.style.display = '';
-           inputGroupe.setAttribute('required', 'true');
+           thBoitier.style.display = 'none';
        }
    
        renderManagementTable();
@@ -502,7 +509,9 @@
                ? `<span style="background-color: #3b82f6; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em;">Professeur</span>`
                : `<span style="background-color: #10b981; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em;">Étudiant</span>`;
            
-           const cellGroupe = currentGestionMode === 'eleve' ? `<td>${escapeHtml(e.Groupe)}</td>` : '';
+           const cellInfoSpé = isProf 
+               ? `<td><code>${escapeHtml(e.id_boitier)}</code></td>` 
+               : `<td>${escapeHtml(e.Groupe)}</td>`;
    
            return `<tr>
                <td>${e.id_etudiants}</td>
@@ -510,7 +519,7 @@
                <td>${escapeHtml(e.Nom)}</td>
                <td>${escapeHtml(e.Prenom)}</td>
                <td>${badgeRole}</td>
-               ${cellGroupe}
+               ${cellInfoSpé}
                <td><code>${escapeHtml(e.id_nfc)}</code></td>
                <td>
                    <button class="btn btn-danger" onclick="deleteStudent(${e.id_etudiants})">Supprimer</button>
@@ -529,7 +538,8 @@
            prenom: document.getElementById('new-prenom').value.trim(),
            numero_etu: document.getElementById('new-num-etu').value.trim(),
            groupe: isProfMode ? "Enseignant" : document.getElementById('new-groupe').value.trim(),
-           id_nfc: document.getElementById('new-id-nfc').value.trim()
+           id_nfc: document.getElementById('new-id-nfc').value.trim(),
+           id_boitier: isProfMode ? (document.getElementById('new-id-boitier').value.trim() || null) : null
        };
    
        const endpoint = isProfMode ? '/api/professeurs' : '/api/etudiants';
@@ -552,6 +562,7 @@
                Nom: payload.nom,
                Prenom: payload.prenom,
                Groupe: payload.groupe,
+               id_boitier: payload.id_boitier || 'Non attribué',
                role: currentGestionMode,
                id_nfc: payload.id_nfc
            });
@@ -568,6 +579,14 @@
    function deleteStudent(id) {
        etudiants = etudiants.filter(e => e.id_etudiants !== id);
        renderManagementTable();
+   }
+   
+   function simulateNFCScan() {
+       const fakeUID = "NFC-" + Math.floor(100000 + Math.random() * 900000);
+       const input = document.getElementById('new-id-nfc');
+       if (input) {
+           input.value = fakeUID;
+       }
    }
    
    /* ==========================================================

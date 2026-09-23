@@ -89,7 +89,6 @@ app.get('/api/edt', async (req, res) => {
 
 // --- ROUTE 2 : POINTAGE / SCAN NFC (RASPBERRY PI) ---
 app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
-    // Le Raspberry Pi peut envoyer son propre id_boitier (ex: 1)
     const { uid, id_nfc, timestamp, id_boitier } = req.body;
     const nfc_code = String(uid || id_nfc);
     const boitier_id = id_boitier || 1; // Boîtier 1 par défaut si non spécifié
@@ -163,7 +162,7 @@ app.post('/api/etudiants', async (req, res) => {
     }
 });
 
-// --- ROUTE 5 : Création enseignant
+// --- ROUTE 5 : CRÉATION ENSEIGNANT ---
 app.post('/api/professeurs', async (req, res) => {
     const { nom, prenom, numero_etu, id_nfc, id_boitier } = req.body;
     try {

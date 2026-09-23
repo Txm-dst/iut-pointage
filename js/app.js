@@ -1,7 +1,6 @@
 /* ==========================================================
    CONFIG
    ========================================================== */
-   // En utilisant un chemin relatif, l'API fonctionne en local ET en ligne
    const API_URL = "/api/edt";
    const TZ = "Europe/Paris";
    const ETUDIANTS_KEY = "iutEtudiants"; // clé localStorage
@@ -40,9 +39,10 @@
        Object.values(ARBORESCENCE).flatMap(tds => Object.values(tds).flat())
    );
    
+   // Liste par défaut avec rôles
    const ETUDIANTS_DEFAUT = [
-       { id_etudiants: 1, Nom: "Dupont", Prenom: "Jean", Numero_etu: "E2026001", Groupe: "BUT3-TD2-PA", id_groupe: 1, id_nfc: "A1B2C3D4" },
-       { id_etudiants: 2, Nom: "Martin", Prenom: "Sophie", Numero_etu: "E2026002", Groupe: "BUT3-TD3-PB", id_groupe: 2, id_nfc: "E5F6G7H8" }
+       { id_etudiants: 1, Nom: "Dupont", Prenom: "Jean", Numero_etu: "E2026001", Groupe: "BUT3-TD2-PA", id_groupe: 1, id_nfc: "391583036585", role: "eleve" },
+       { id_etudiants: 2, Nom: "Tuteur", Prenom: "Professeur", Numero_etu: "P2026001", Groupe: "Intervenant", id_groupe: 2, id_nfc: "3674494601", role: "prof" }
    ];
    
    /* ==========================================================
@@ -54,7 +54,7 @@
    let premierChargement = true;
    
    /* ==========================================================
-      OUTILS DATES
+      OUTILS DATES & SECU
       ========================================================== */
    const fmtCle = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
    const fmtHeure = new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
@@ -180,7 +180,7 @@
    }
    
    /* ==========================================================
-      RÉCUPÉRATION ET TRAITEMENT
+      RÉCUPÉRATION ET TRAITEMENT ADE
       ========================================================== */
    async function loadADEData(forcer = false) {
        const tbody = document.getElementById('seances-table');
@@ -215,7 +215,7 @@
            if (btnRefresh) btnRefresh.classList.remove('loading');
        }
    }
-   
+
    function calculerCibles(groupe) {
        if (FEUILLES[groupe]) return FEUILLES[groupe];
        const enfants = [...TOUTES_LES_FEUILLES].filter(f => f.startsWith(groupe + "-"));
@@ -444,20 +444,34 @@
    }
    
    /* ==========================================================
-      GESTION
+      GESTION DES UTILISATEURS (ÉLÈVES & PROFS)
       ========================================================== */
    function renderManagementTable() {
        const table = document.getElementById('student-management-table');
        if (!table) return;
-       table.innerHTML = etudiants.map(e => `<tr>
-           <td>${e.id_etudiants}</td>
-           <td>${escapeHtml(e.Numero_etu)}</td>
-           <td>${escapeHtml(e.Nom)}</td>
-           <td>${escapeHtml(e.Prenom)}</td>
-           <td>${escapeHtml(e.Groupe)}</td>
-           <td><code>${escapeHtml(e.id_nfc)}</code></td>
-           <td><button class="btn btn-danger" onclick="deleteStudent(${e.id_etudiants})">Supprimer</button></td>
-       </tr>`).join('');
+       
+       table.innerHTML = etudiants.map(e => {
+           const isProf = e.role === 'prof';
+           const badgeRole = isProf 
+               ? `<span style="background-color: #3b82f6; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em;">Professeur</span>`
+               : `<span style="background-color: #10b981; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em;">Étudiant</span>`;
+           
+           const btnBascule = `<button class="btn btn-secondary" style="margin-right: 5px;" onclick="toggleUserRole(${e.id_etudiants})">Changer en ${isProf ? 'Étudiant' : 'Prof'}</button>`;
+
+           return `<tr>
+               <td>${e.id_etudiants}</td>
+               <td>${escapeHtml(e.Numero_etu)}</td>
+               <td>${escapeHtml(e.Nom)}</td>
+               <td>${escapeHtml(e.Prenom)}</td>
+               <td>${badgeRole}</td>
+               <td>${escapeHtml(e.Groupe)}</td>
+               <td><code>${escapeHtml(e.id_nfc)}</code></td>
+               <td>
+                   ${btnBascule}
+                   <button class="btn btn-danger" onclick="deleteStudent(${e.id_etudiants})">Supprimer</button>
+               </td>
+           </tr>`;
+       }).join('');
    }
    
    function simulateNFCScan() {
@@ -473,12 +487,22 @@
            Nom: document.getElementById('new-nom').value.trim(),
            Prenom: document.getElementById('new-prenom').value.trim(),
            Groupe: document.getElementById('new-groupe').value.trim(),
+           role: document.getElementById('new-role').value,
            id_groupe: 1,
            id_nfc: document.getElementById('new-id-nfc').value.trim()
        });
        saveEtudiants();
        document.getElementById('add-student-form').reset();
        renderManagementTable();
+   }
+
+   function toggleUserRole(id) {
+       const user = etudiants.find(e => e.id_etudiants === id);
+       if (user) {
+           user.role = user.role === 'prof' ? 'eleve' : 'prof';
+           saveEtudiants();
+           renderManagementTable();
+       }
    }
    
    function deleteStudent(id) {

@@ -71,6 +71,19 @@ app.post('/api/nfc', (req, res) => {
     res.json({ status: 'success', uid });
 });
 
+// --- ROUTES 3 : SYNCHRONISATION RASPBERRY PI ---
+// Envoi des étudiants au Raspberry Pi
+app.get('/api/etudiants', (req, res) => {
+    // Si tu utilises une BDD PostgreSQL sur Render, remplace cette réponse par la requête BDD
+    res.json([]);
+});
+
+// Envoi des professeurs au Raspberry Pi
+app.get('/api/professeurs', (req, res) => {
+    // Si tu utilises une BDD PostgreSQL sur Render, remplace cette réponse par la requête BDD
+    res.json([]);
+});
+
 io.on('connection', (socket) => {
     console.log('Client Web connecté ID:', socket.id);
 });

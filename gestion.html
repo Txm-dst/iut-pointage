@@ -6,7 +6,7 @@
         if (sessionStorage.getItem('iutAuth') !== '1') { location.replace('index.html'); }
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion des étudiants — IUT Pointage</title>
+    <title>Gestion des utilisateurs — IUT Pointage</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -19,7 +19,7 @@
         <div class="nav-links">
             <a class="nav-link" href="edt.html">🕒 Emploi du temps</a>
             <a class="nav-link" href="recherche.html">🔍 Recherche</a>
-            <a class="nav-link nav-green-active" href="gestion.html">👥 Gestion des étudiants</a>
+            <a class="nav-link nav-green-active" href="gestion.html">👥 Gestion des utilisateurs</a>
         </div>
         <button class="btn btn-danger" onclick="logout()">Déconnexion</button>
     </nav>
@@ -28,39 +28,46 @@
         <div class="page-hero-inner">
             <span class="page-hero-icon">👥</span>
             <div>
-                <h1>Gestion des étudiants</h1>
-                <p>Ajoutez, consultez et retirez des étudiants de la base de pointage.</p>
+                <h1>Gestion des utilisateurs</h1>
+                <p>Ajoutez, consultez et basculez les rôles (Élève / Prof) de la base de pointage.</p>
             </div>
         </div>
     </header>
 
     <main class="content">
         <div class="card">
-            <h3>Ajouter un étudiant</h3>
+            <h3>Ajouter un utilisateur</h3>
             <form id="add-student-form" onsubmit="addStudent(event)">
                 <div class="form-row">
-                    <input type="text" id="new-num-etu" placeholder="Numero_etu" required>
+                    <input type="text" id="new-num-etu" placeholder="Numéro identifiant (ex: E2026...)" required>
                     <input type="text" id="new-nom" placeholder="Nom" required>
                     <input type="text" id="new-prenom" placeholder="Prénom" required>
-                    <input type="text" id="new-groupe" placeholder="Groupe (ex : BUT3-TD3-PB)" required>
+                    <input type="text" id="new-groupe" placeholder="Groupe / Affectation" required>
+                </div>
+                <div class="form-row">
+                    <select id="new-role" style="padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit;">
+                        <option value="eleve">Rôle : Étudiant</option>
+                        <option value="prof">Rôle : Professeur</option>
+                    </select>
                 </div>
                 <div class="form-row scan-row">
                     <input type="text" id="new-id-nfc" placeholder="id_nfc (UID carte)" required>
                     <button type="button" class="btn btn-secondary" onclick="simulateNFCScan()">Scanner carte NFC</button>
                 </div>
-                <button type="submit" class="btn btn-success">Enregistrer l'étudiant</button>
+                <button type="submit" class="btn btn-success">Enregistrer l'utilisateur</button>
             </form>
         </div>
 
         <div class="card">
-            <h3>Liste des étudiants</h3>
+            <h3>Liste des utilisateurs enregistrés</h3>
             <table class="data-table">
                 <thead>
                     <tr>
                         <th>ID</th>
-                        <th>N° étu</th>
+                        <th>N° Identifiant</th>
                         <th>Nom</th>
                         <th>Prénom</th>
+                        <th>Rôle</th>
                         <th>Groupe</th>
                         <th>ID NFC</th>
                         <th>Actions</th>

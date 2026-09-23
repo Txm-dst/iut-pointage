@@ -8,13 +8,12 @@ const { Pool } = require('pg');
 const app = express();
 const server = http.createServer(app);
 
-// Configuration de la connexion PostgreSQL
-// Configuration de la connexion PostgreSQL avec prise en charge de DATABASE_URL
+// Configuration de la connexion PostgreSQL (Cloud Supabase ou local)
 const pool = new Pool(
     process.env.DATABASE_URL
       ? {
           connectionString: process.env.DATABASE_URL,
-          ssl: { rejectUnauthorized: false } // Indispensable pour Supabase / Render
+          ssl: { rejectUnauthorized: false } // Requis pour Supabase / Render
         }
       : {
           user: process.env.PGUSER || 'postgres',
@@ -23,14 +22,14 @@ const pool = new Pool(
           password: process.env.PGPASSWORD || 'Tom62800',
           port: process.env.PGPORT || 5432,
         }
-  );
+);
 
 // Test de connexion à la base de données
 pool.connect((err, client, release) => {
   if (err) {
     console.error('Erreur de connexion à PostgreSQL :', err.stack);
   } else {
-    console.log('Connecté avec succès à la base PostgreSQL pointage_iut');
+    console.log('Connecté avec succès à la base PostgreSQL Supabase');
     release();
   }
 });
@@ -96,7 +95,6 @@ app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
     console.log(`[POINTAGE REÇU] Badge UID: ${nfc_code}`);
 
     try {
-        // Enregistrement réel en BDD PostgreSQL
         const insertQuery = `
             INSERT INTO pointages (id_badge, horodatage)
             VALUES ($1, COALESCE($2::timestamp, NOW()))
@@ -104,20 +102,20 @@ app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
         `;
         const result = await pool.query(insertQuery, [nfc_code, timestamp || null]);
 
-        // Diffusion temps réel en WebSockets vers l'interface web
+        // Diffusion WebSockets vers l'interface web
         io.emit('nfc-scan', { uid: nfc_code, pointage: result.rows[0] });
 
         res.json({ status: 'success', data: result.rows[0] });
     } catch (err) {
-        console.error('Erreur lors de l insertion en BDD :', err.message);
+        console.error('Erreur insertion pointage BDD :', err.message);
         res.status(500).json({ error: 'Erreur BDD', details: err.message });
     }
 });
 
-// --- ROUTES 3 : SYNCHRONISATION ÉTUDIANTS / ENSEIGNANTS ---
+// --- ROUTE 3 : LECTURE ÉTUDIANTS / ENSEIGNANTS (SUPABASE) ---
 app.get('/api/etudiants', async (req, res) => {
     try {
-        const { rows } = await pool.query('SELECT * FROM etudiants');
+        const { rows } = await pool.query('SELECT * FROM etudiants ORDER BY id ASC');
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -126,9 +124,43 @@ app.get('/api/etudiants', async (req, res) => {
 
 app.get('/api/professeurs', async (req, res) => {
     try {
-        const { rows } = await pool.query('SELECT * FROM enseignants');
+        const { rows } = await pool.query('SELECT * FROM enseignants ORDER BY id ASC');
         res.json(rows);
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- ROUTE 4 : CRÉATION ÉTUDIANT (INSERTION SUPABASE) ---
+app.post('/api/etudiants', async (req, res) => {
+    const { nom, prenom, numero_etu, groupe, id_nfc } = req.body;
+    try {
+        const query = `
+            INSERT INTO etudiants (nom, prenom, numero_etu, groupe, id_nfc)
+            VALUES ($1, $2, $3, $4, $5) RETURNING *;
+        `;
+        const { rows } = await pool.query(query, [nom, prenom, numero_etu, groupe, id_nfc]);
+        console.log('[BDD] Étudiant créé :', rows[0]);
+        res.status(201).json(rows[0]);
+    } catch (err) {
+        console.error('Erreur création étudiant BDD :', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- ROUTE 5 : CRÉATION ENSEIGNANT (INSERTION SUPABASE) ---
+app.post('/api/professeurs', async (req, res) => {
+    const { nom, prenom, numero_etu, id_nfc } = req.body;
+    try {
+        const query = `
+            INSERT INTO enseignants (nom, prenom, numero_etu, id_nfc)
+            VALUES ($1, $2, $3, $4) RETURNING *;
+        `;
+        const { rows } = await pool.query(query, [nom, prenom, numero_etu, id_nfc]);
+        console.log('[BDD] Enseignant créé :', rows[0]);
+        res.status(201).json(rows[0]);
+    } catch (err) {
+        console.error('Erreur création enseignant BDD :', err.message);
         res.status(500).json({ error: err.message });
     }
 });

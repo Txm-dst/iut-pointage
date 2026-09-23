@@ -3,7 +3,6 @@
    ========================================================== */
    const API_URL = "/api/edt";
    const TZ = "Europe/Paris";
-   const ETUDIANTS_KEY = "iutEtudiants"; // clé localStorage
    
    // Arborescence ADE
    const ARBORESCENCE = {
@@ -39,12 +38,6 @@
        Object.values(ARBORESCENCE).flatMap(tds => Object.values(tds).flat())
    );
    
-   // Liste par défaut avec rôles
-   const ETUDIANTS_DEFAUT = [
-       { id_etudiants: 1, Nom: "Dupont", Prenom: "Jean", Numero_etu: "E2026001", Groupe: "BUT3-TD2-PA", id_groupe: 1, id_nfc: "391583036585", role: "eleve" },
-       { id_etudiants: 2, Nom: "Tuteur", Prenom: "Professeur", Numero_etu: "P2026001", Groupe: "Intervenant", id_groupe: 2, id_nfc: "3674494601", role: "prof" }
-   ];
-   
    /* ==========================================================
       ÉTAT
       ========================================================== */
@@ -52,7 +45,7 @@
    let tousLesCoursExtraits = [];
    let jourSelectionne = "";
    let premierChargement = true;
-   let currentGestionMode = 'eleve'; // Mode actif dans gestion.html ('eleve' ou 'prof')
+   let currentGestionMode = 'eleve'; // Mode actif ('eleve' ou 'prof')
    
    /* ==========================================================
       OUTILS DATES & SECU
@@ -111,23 +104,41 @@
    }
    
    /* ==========================================================
-      PERSISTANCE
+      SYNCHRONISATION BDD SUPABASE
       ========================================================== */
-   function loadEtudiants() {
+   async function loadEtudiants() {
        try {
-           const brut = localStorage.getItem(ETUDIANTS_KEY);
-           if (brut) return JSON.parse(brut);
-       } catch (err) {
-           console.error("Lecture des étudiants impossible :", err);
-       }
-       return ETUDIANTS_DEFAUT.map(e => ({ ...e }));
-   }
+           const [resEtu, resProf] = await Promise.all([
+               fetch('/api/etudiants'),
+               fetch('/api/professeurs')
+           ]);
+           
+           const etuData = await resEtu.json();
+           const profData = await resProf.json();
    
-   function saveEtudiants() {
-       try {
-           localStorage.setItem(ETUDIANTS_KEY, JSON.stringify(etudiants));
+           const eleves = Array.isArray(etuData) ? etuData.map(e => ({
+               id_etudiants: e.id || e.id_etudiants,
+               Numero_etu: e.numero_etu || e.Numero_etu || 'N/A',
+               Nom: e.nom || e.Nom,
+               Prenom: e.prenom || e.Prenom,
+               Groupe: e.groupe || e.Groupe || 'BUT1-TD1',
+               id_nfc: e.id_nfc || '',
+               role: 'eleve'
+           })) : [];
+   
+           const profs = Array.isArray(profData) ? profData.map(p => ({
+               id_etudiants: p.id || p.id_enseignants,
+               Numero_etu: p.numero_etu || p.Numero_etu || 'P-001',
+               Nom: p.nom || p.Nom,
+               Prenom: p.prenom || p.Prenom,
+               Groupe: "Enseignant",
+               id_nfc: p.id_nfc || '',
+               role: 'prof'
+           })) : [];
+   
+           etudiants = [...eleves, ...profs];
        } catch (err) {
-           console.error("Enregistrement impossible :", err);
+           console.error("Erreur chargement Supabase :", err);
        }
    }
    
@@ -199,7 +210,7 @@
            if (!icsText.includes("BEGIN:VCALENDAR")) throw new Error("Réponse ADE invalide (format ICS attendu)");
    
            traiterEmploiDuTemps(icsText);
-
+   
            const obsolete = response.headers.get('X-Cache') === 'STALE';
            setStatus(
                obsolete
@@ -216,7 +227,7 @@
            if (btnRefresh) btnRefresh.classList.remove('loading');
        }
    }
-
+   
    function calculerCibles(groupe) {
        if (FEUILLES[groupe]) return FEUILLES[groupe];
        const enfants = [...TOUTES_LES_FEUILLES].filter(f => f.startsWith(groupe + "-"));
@@ -262,7 +273,7 @@
    
            const cle = [event.summary, debut.getTime(), fin.getTime(), event.location, professeur].join("|");
            if (coursUniques.has(cle)) {
-               cibles.forEach(c => coursUniques.get(cle).cibles.add(c));
+               coursUniques.get(cle).cibles.forEach(c => cibles.add(c));
                return;
            }
    
@@ -323,7 +334,7 @@
                html += '</optgroup>';
            });
        });
-
+   
        const autres = new Set();
        tousLesCoursExtraits.forEach(c => c.cibles.forEach(cible => {
            const dansLeNiveau = niveauSelect === "TOUS" || cible.startsWith(niveauSelect + "-");
@@ -427,7 +438,7 @@
        const select = document.getElementById('group-filter');
        const table = document.getElementById('student-search-table');
        if (!input || !table) return;
-
+   
        const query = input.value.toLowerCase();
        const selectedGroup = select ? select.value : "";
    
@@ -450,20 +461,17 @@
    function setGestionMode(mode) {
        currentGestionMode = mode;
        
-       // Styles des boutons d'onglet
        document.getElementById('btn-mode-eleve').classList.toggle('active', mode === 'eleve');
        document.getElementById('btn-mode-prof').classList.toggle('active', mode === 'prof');
-
-       // Adapter les titres
+   
        document.getElementById('form-title').innerText = mode === 'eleve' ? 'Ajouter un étudiant' : 'Ajouter un professeur';
        document.getElementById('btn-submit-user').innerText = mode === 'eleve' ? 'Enregistrer l\'étudiant' : 'Enregistrer le professeur';
        document.getElementById('table-title').innerText = mode === 'eleve' ? 'Liste des étudiants' : 'Liste des professeurs';
-
-       // Masquer/Afficher le champ de saisie Groupe & la colonne tableau Groupe
+   
        const containerGroupe = document.getElementById('groupe-input-container');
        const thGroupe = document.getElementById('th-groupe');
        const inputGroupe = document.getElementById('new-groupe');
-
+   
        if (mode === 'prof') {
            containerGroupe.style.display = 'none';
            thGroupe.style.display = 'none';
@@ -473,31 +481,29 @@
            thGroupe.style.display = '';
            inputGroupe.setAttribute('required', 'true');
        }
-
+   
        renderManagementTable();
    }
-
+   
    function renderManagementTable() {
        const table = document.getElementById('student-management-table');
        if (!table) return;
        
-       // Filtrage strict selon le mode actif
        const listeAffichee = etudiants.filter(e => e.role === currentGestionMode);
-
+   
        if (listeAffichee.length === 0) {
-           table.innerHTML = `<tr><td colspan="8" style="text-align:center;">Aucun ${currentGestionMode === 'eleve' ? 'étudiant' : 'professeur'} enregistré.</td></tr>`;
+           table.innerHTML = `<tr><td colspan="8" style="text-align:center;">Aucun ${currentGestionMode === 'eleve' ? 'étudiant' : 'professeur'} enregistré dans la base de données.</td></tr>`;
            return;
        }
-
+   
        table.innerHTML = listeAffichee.map(e => {
            const isProf = e.role === 'prof';
            const badgeRole = isProf 
                ? `<span style="background-color: #3b82f6; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em;">Professeur</span>`
                : `<span style="background-color: #10b981; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em;">Étudiant</span>`;
            
-           const btnBasculeText = isProf ? 'Passer en Élève' : 'Passer en Prof';
            const cellGroupe = currentGestionMode === 'eleve' ? `<td>${escapeHtml(e.Groupe)}</td>` : '';
-
+   
            return `<tr>
                <td>${e.id_etudiants}</td>
                <td>${escapeHtml(e.Numero_etu)}</td>
@@ -507,53 +513,60 @@
                ${cellGroupe}
                <td><code>${escapeHtml(e.id_nfc)}</code></td>
                <td>
-                   <button class="btn btn-secondary" style="margin-right: 5px;" onclick="toggleUserRole(${e.id_etudiants})">${btnBasculeText}</button>
                    <button class="btn btn-danger" onclick="deleteStudent(${e.id_etudiants})">Supprimer</button>
                </td>
            </tr>`;
        }).join('');
    }
    
-   function simulateNFCScan() {
-       const field = document.getElementById('new-id-nfc');
-       if (field) field.value = "NFC-" + Math.floor(Math.random() * 899999 + 100000);
-   }
-   
-   function addStudent(e) {
+   // Saisie via l'API Supabase
+   async function addStudent(e) {
        e.preventDefault();
        const isProfMode = currentGestionMode === 'prof';
-
-       etudiants.push({
-           id_etudiants: Date.now(),
-           Numero_etu: document.getElementById('new-num-etu').value.trim(),
-           Nom: document.getElementById('new-nom').value.trim(),
-           Prenom: document.getElementById('new-prenom').value.trim(),
-           Groupe: isProfMode ? "Enseignant" : document.getElementById('new-groupe').value.trim(),
-           role: currentGestionMode,
-           id_groupe: 1,
+   
+       const payload = {
+           nom: document.getElementById('new-nom').value.trim(),
+           prenom: document.getElementById('new-prenom').value.trim(),
+           numero_etu: document.getElementById('new-num-etu').value.trim(),
+           groupe: isProfMode ? "Enseignant" : document.getElementById('new-groupe').value.trim(),
            id_nfc: document.getElementById('new-id-nfc').value.trim()
-       });
-
-       saveEtudiants();
-       document.getElementById('add-student-form').reset();
-       renderManagementTable();
-   }
-
-   function toggleUserRole(id) {
-       const user = etudiants.find(e => e.id_etudiants === id);
-       if (user) {
-           user.role = user.role === 'prof' ? 'eleve' : 'prof';
-           if (user.role === 'prof') {
-               user.Groupe = "Enseignant";
-           }
-           saveEtudiants();
+       };
+   
+       const endpoint = isProfMode ? '/api/professeurs' : '/api/etudiants';
+   
+       try {
+           const response = await fetch(endpoint, {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify(payload)
+           });
+   
+           if (!response.ok) throw new Error("Échec d'enregistrement BDD");
+   
+           const recordBDD = await response.json();
+   
+           // Ajout local et rafraîchissement
+           etudiants.push({
+               id_etudiants: recordBDD.id || Date.now(),
+               Numero_etu: payload.numero_etu,
+               Nom: payload.nom,
+               Prenom: payload.prenom,
+               Groupe: payload.groupe,
+               role: currentGestionMode,
+               id_nfc: payload.id_nfc
+           });
+   
+           document.getElementById('add-student-form').reset();
            renderManagementTable();
+           alert(`${isProfMode ? 'Professeur' : 'Étudiant'} ajouté avec succès dans Supabase !`);
+       } catch (err) {
+           console.error("Erreur insertion BDD :", err);
+           alert("Erreur lors de l'enregistrement dans la base de données.");
        }
    }
    
    function deleteStudent(id) {
        etudiants = etudiants.filter(e => e.id_etudiants !== id);
-       saveEtudiants();
        renderManagementTable();
    }
    
@@ -576,32 +589,32 @@
        });
    }
    
-   function initReecherchePage() {
-       etudiants = loadEtudiants();
+   async function initReecherchePage() {
+       await loadEtudiants();
        updateGroupDropdown();
        filterStudents();
    }
    
-   function initGestionPage() {
-       etudiants = loadEtudiants();
-       setGestionMode('eleve'); // Initialise par défaut sur les élèves
+   async function initGestionPage() {
+       await loadEtudiants();
+       setGestionMode('eleve');
    }
    
    document.addEventListener('DOMContentLoaded', () => {
        if (document.getElementById('seances-table')) initEdtPage();
        else if (document.getElementById('add-student-form')) initGestionPage();
        else if (document.getElementById('student-search-table')) initReecherchePage();
-
-       // Écoute du WebSocket pour les badges NFC
+   
+       // Connexion WebSocket pour réception des scans NFC du Raspberry Pi
        if (typeof io !== 'undefined') {
            const socket = io();
-
+   
            socket.on('connect', () => {
                console.log('Connecté au serveur WebSocket NFC !');
            });
-
+   
            socket.on('nfc-scan', (data) => {
-               console.log('Badge NFC reçu :', data.uid);
+               console.log('Badge NFC capturé :', data.uid);
                const inputNFC = document.getElementById('new-id-nfc');
                if (inputNFC) {
                    inputNFC.value = data.uid;

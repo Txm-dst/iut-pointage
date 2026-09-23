@@ -9,13 +9,21 @@ const app = express();
 const server = http.createServer(app);
 
 // Configuration de la connexion PostgreSQL
-const pool = new Pool({
-  user: process.env.PGUSER || 'postgres',
-  host: process.env.PGHOST || 'localhost',
-  database: process.env.PGDATABASE || 'pointage_iut',
-  password: process.env.PGPASSWORD || 'Tom62800', // Ton mot de passe postgres local
-  port: process.env.PGPORT || 5432,
-});
+// Configuration de la connexion PostgreSQL avec prise en charge de DATABASE_URL
+const pool = new Pool(
+    process.env.DATABASE_URL
+      ? {
+          connectionString: process.env.DATABASE_URL,
+          ssl: { rejectUnauthorized: false } // Indispensable pour Supabase / Render
+        }
+      : {
+          user: process.env.PGUSER || 'postgres',
+          host: process.env.PGHOST || 'localhost',
+          database: process.env.PGDATABASE || 'pointage_iut',
+          password: process.env.PGPASSWORD || 'Tom62800',
+          port: process.env.PGPORT || 5432,
+        }
+  );
 
 // Test de connexion à la base de données
 pool.connect((err, client, release) => {

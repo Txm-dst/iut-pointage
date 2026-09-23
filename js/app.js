@@ -52,6 +52,7 @@
    let tousLesCoursExtraits = [];
    let jourSelectionne = "";
    let premierChargement = true;
+   let currentGestionMode = 'eleve'; // Mode actif dans gestion.html ('eleve' ou 'prof')
    
    /* ==========================================================
       OUTILS DATES & SECU
@@ -131,7 +132,7 @@
    }
    
    /* ==========================================================
-      NAVIGATION JOUR PAR JOUR
+      NAVIGATION JOUR PAR JOUR (EDT)
       ========================================================== */
    function changerJour(delta) {
        const sauterVides = document.getElementById('edt-skip-empty').checked;
@@ -198,7 +199,7 @@
            if (!icsText.includes("BEGIN:VCALENDAR")) throw new Error("Réponse ADE invalide (format ICS attendu)");
    
            traiterEmploiDuTemps(icsText);
-   
+
            const obsolete = response.headers.get('X-Cache') === 'STALE';
            setStatus(
                obsolete
@@ -295,7 +296,7 @@
    }
    
    /* ==========================================================
-      FILTRES & TABLE
+      FILTRES & TABLE EDT
       ========================================================== */
    function updateEDTGroupDropdownOptions() {
        const niveauSelect = document.getElementById('edt-filter-niveau').value;
@@ -444,19 +445,58 @@
    }
    
    /* ==========================================================
-      GESTION DES UTILISATEURS (ÉLÈVES & PROFS)
+      GESTION DES UTILISATEURS (MODE DYNAMIQUE ÉLÈVE / PROF)
       ========================================================== */
+   function setGestionMode(mode) {
+       currentGestionMode = mode;
+       
+       // Styles des boutons d'onglet
+       document.getElementById('btn-mode-eleve').classList.toggle('active', mode === 'eleve');
+       document.getElementById('btn-mode-prof').classList.toggle('active', mode === 'prof');
+
+       // Adapter les titres
+       document.getElementById('form-title').innerText = mode === 'eleve' ? 'Ajouter un étudiant' : 'Ajouter un professeur';
+       document.getElementById('btn-submit-user').innerText = mode === 'eleve' ? 'Enregistrer l\'étudiant' : 'Enregistrer le professeur';
+       document.getElementById('table-title').innerText = mode === 'eleve' ? 'Liste des étudiants' : 'Liste des professeurs';
+
+       // Masquer/Afficher le champ de saisie Groupe & la colonne tableau Groupe
+       const containerGroupe = document.getElementById('groupe-input-container');
+       const thGroupe = document.getElementById('th-groupe');
+       const inputGroupe = document.getElementById('new-groupe');
+
+       if (mode === 'prof') {
+           containerGroupe.style.display = 'none';
+           thGroupe.style.display = 'none';
+           inputGroupe.removeAttribute('required');
+       } else {
+           containerGroupe.style.display = 'block';
+           thGroupe.style.display = '';
+           inputGroupe.setAttribute('required', 'true');
+       }
+
+       renderManagementTable();
+   }
+
    function renderManagementTable() {
        const table = document.getElementById('student-management-table');
        if (!table) return;
        
-       table.innerHTML = etudiants.map(e => {
+       // Filtrage strict selon le mode actif
+       const listeAffichee = etudiants.filter(e => e.role === currentGestionMode);
+
+       if (listeAffichee.length === 0) {
+           table.innerHTML = `<tr><td colspan="8" style="text-align:center;">Aucun ${currentGestionMode === 'eleve' ? 'étudiant' : 'professeur'} enregistré.</td></tr>`;
+           return;
+       }
+
+       table.innerHTML = listeAffichee.map(e => {
            const isProf = e.role === 'prof';
            const badgeRole = isProf 
                ? `<span style="background-color: #3b82f6; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em;">Professeur</span>`
                : `<span style="background-color: #10b981; color: white; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em;">Étudiant</span>`;
            
-           const btnBascule = `<button class="btn btn-secondary" style="margin-right: 5px;" onclick="toggleUserRole(${e.id_etudiants})">Changer en ${isProf ? 'Étudiant' : 'Prof'}</button>`;
+           const btnBasculeText = isProf ? 'Passer en Élève' : 'Passer en Prof';
+           const cellGroupe = currentGestionMode === 'eleve' ? `<td>${escapeHtml(e.Groupe)}</td>` : '';
 
            return `<tr>
                <td>${e.id_etudiants}</td>
@@ -464,10 +504,10 @@
                <td>${escapeHtml(e.Nom)}</td>
                <td>${escapeHtml(e.Prenom)}</td>
                <td>${badgeRole}</td>
-               <td>${escapeHtml(e.Groupe)}</td>
+               ${cellGroupe}
                <td><code>${escapeHtml(e.id_nfc)}</code></td>
                <td>
-                   ${btnBascule}
+                   <button class="btn btn-secondary" style="margin-right: 5px;" onclick="toggleUserRole(${e.id_etudiants})">${btnBasculeText}</button>
                    <button class="btn btn-danger" onclick="deleteStudent(${e.id_etudiants})">Supprimer</button>
                </td>
            </tr>`;
@@ -481,16 +521,19 @@
    
    function addStudent(e) {
        e.preventDefault();
+       const isProfMode = currentGestionMode === 'prof';
+
        etudiants.push({
            id_etudiants: Date.now(),
            Numero_etu: document.getElementById('new-num-etu').value.trim(),
            Nom: document.getElementById('new-nom').value.trim(),
            Prenom: document.getElementById('new-prenom').value.trim(),
-           Groupe: document.getElementById('new-groupe').value.trim(),
-           role: document.getElementById('new-role').value,
+           Groupe: isProfMode ? "Enseignant" : document.getElementById('new-groupe').value.trim(),
+           role: currentGestionMode,
            id_groupe: 1,
            id_nfc: document.getElementById('new-id-nfc').value.trim()
        });
+
        saveEtudiants();
        document.getElementById('add-student-form').reset();
        renderManagementTable();
@@ -500,6 +543,9 @@
        const user = etudiants.find(e => e.id_etudiants === id);
        if (user) {
            user.role = user.role === 'prof' ? 'eleve' : 'prof';
+           if (user.role === 'prof') {
+               user.Groupe = "Enseignant";
+           }
            saveEtudiants();
            renderManagementTable();
        }
@@ -538,7 +584,7 @@
    
    function initGestionPage() {
        etudiants = loadEtudiants();
-       renderManagementTable();
+       setGestionMode('eleve'); // Initialise par défaut sur les élèves
    }
    
    document.addEventListener('DOMContentLoaded', () => {
@@ -546,7 +592,7 @@
        else if (document.getElementById('add-student-form')) initGestionPage();
        else if (document.getElementById('student-search-table')) initReecherchePage();
 
-       // Écoute du WebSocket pour recevoir les scans NFC (Render ou Local)
+       // Écoute du WebSocket pour les badges NFC
        if (typeof io !== 'undefined') {
            const socket = io();
 

@@ -11,6 +11,27 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .role-switch-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .role-btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 2px solid #10b981;
+            background: transparent;
+            color: #10b981;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .role-btn.active {
+            background: #10b981;
+            color: white;
+        }
+    </style>
 </head>
 <body>
 
@@ -29,37 +50,43 @@
             <span class="page-hero-icon">👥</span>
             <div>
                 <h1>Gestion des utilisateurs</h1>
-                <p>Ajoutez, consultez et basculez les rôles (Élève / Prof) de la base de pointage.</p>
+                <p>Ajoutez, consultez et administrez les étudiants et professeurs.</p>
             </div>
         </div>
     </header>
 
     <main class="content">
+
+        <!-- BOUTONS DE BASCULE D'ONGLET (ÉTUDIANT / PROF) -->
+        <div class="role-switch-container">
+            <button id="btn-mode-eleve" class="role-btn active" onclick="setGestionMode('eleve')">👨‍🎓 Mode Étudiants</button>
+            <button id="btn-mode-prof" class="role-btn" onclick="setGestionMode('prof')">👨‍🏫 Mode Professeurs</button>
+        </div>
+
         <div class="card">
-            <h3>Ajouter un utilisateur</h3>
+            <h3 id="form-title">Ajouter un étudiant</h3>
             <form id="add-student-form" onsubmit="addStudent(event)">
                 <div class="form-row">
-                    <input type="text" id="new-num-etu" placeholder="Numéro identifiant (ex: E2026...)" required>
+                    <input type="text" id="new-num-etu" placeholder="N° Identifiant / N° Étudiant" required>
                     <input type="text" id="new-nom" placeholder="Nom" required>
                     <input type="text" id="new-prenom" placeholder="Prénom" required>
-                    <input type="text" id="new-groupe" placeholder="Groupe / Affectation" required>
+                    
+                    <!-- Le champ Groupe est masqué dynamiquement si mode Prof -->
+                    <div id="groupe-input-container">
+                        <input type="text" id="new-groupe" placeholder="Groupe / Affectation (ex: BUT3-TD2-PA)">
+                    </div>
                 </div>
-                <div class="form-row">
-                    <select id="new-role" style="padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit;">
-                        <option value="eleve">Rôle : Étudiant</option>
-                        <option value="prof">Rôle : Professeur</option>
-                    </select>
-                </div>
+
                 <div class="form-row scan-row">
                     <input type="text" id="new-id-nfc" placeholder="id_nfc (UID carte)" required>
                     <button type="button" class="btn btn-secondary" onclick="simulateNFCScan()">Scanner carte NFC</button>
                 </div>
-                <button type="submit" class="btn btn-success">Enregistrer l'utilisateur</button>
+                <button type="submit" id="btn-submit-user" class="btn btn-success">Enregistrer l'étudiant</button>
             </form>
         </div>
 
         <div class="card">
-            <h3>Liste des utilisateurs enregistrés</h3>
+            <h3 id="table-title">Liste des étudiants</h3>
             <table class="data-table">
                 <thead>
                     <tr>
@@ -68,7 +95,7 @@
                         <th>Nom</th>
                         <th>Prénom</th>
                         <th>Rôle</th>
-                        <th>Groupe</th>
+                        <th id="th-groupe">Groupe</th>
                         <th>ID NFC</th>
                         <th>Actions</th>
                     </tr>
@@ -78,7 +105,7 @@
         </div>
     </main>
 
-    <!-- CDN Socket.IO pour fonctionner sur n'importe quelle URL (Render ou Local) -->
+    <!-- CDN Socket.IO -->
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="js/app.js"></script>
 </body>

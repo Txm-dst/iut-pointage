@@ -96,19 +96,22 @@ app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
     console.log(`[POINTAGE REÇU] Badge UID: ${nfc_code} depuis Boîtier: ${boitier_id}`);
 
     try {
-        // 1. Recherche de l'étudiant correspondant à cet UID
-        const etuRes = await pool.query('SELECT id FROM etudiants WHERE id_nfc = $1', [nfc_code]);
-        let id_etudiant = etuRes.rows.length > 0 ? etuRes.rows[0].id : null;
+        // 1. Recherche de l'étudiant (on récupère id ou id_etudiant selon ta structure, ici on gère large)
+        const etuRes = await pool.query('SELECT * FROM etudiants WHERE id_nfc = $1', [nfc_code]);
+        let id_etudiant = null;
+        if (etuRes.rows.length > 0) {
+            id_etudiant = etuRes.rows[0].id || etuRes.rows[0].id_etudiant;
+        }
 
         // 2. Si ce n'est pas un étudiant, recherche dans la table enseignants
         if (!id_etudiant) {
-            const profRes = await pool.query('SELECT id FROM enseignants WHERE id_nfc = $1', [nfc_code]);
+            const profRes = await pool.query('SELECT * FROM enseignants WHERE id_nfc = $1', [nfc_code]);
             if (profRes.rows.length > 0) {
-                id_etudiant = profRes.rows[0].id;
+                id_etudiant = profRes.rows[0].id || profRes.rows[0].id_enseignant;
             }
         }
 
-        // 3. Insertion enrichie dans la table pointages
+        // 3. Insertion dans la table pointages (en s'adaptant aux colonnes standard)
         const insertQuery = `
             INSERT INTO pointages (id_badge, horodatage, id_etudiant, id_boitier)
             VALUES ($1, COALESCE($2::timestamp, NOW()), $3, $4)
@@ -129,7 +132,7 @@ app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
 // --- ROUTE 3 : LECTURE ÉTUDIANTS / ENSEIGNANTS (SUPABASE) ---
 app.get('/api/etudiants', async (req, res) => {
     try {
-        const { rows } = await pool.query('SELECT * FROM etudiants ORDER BY id ASC');
+        const { rows } = await pool.query('SELECT * FROM etudiants');
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -138,7 +141,7 @@ app.get('/api/etudiants', async (req, res) => {
 
 app.get('/api/professeurs', async (req, res) => {
     try {
-        const { rows } = await pool.query('SELECT * FROM enseignants ORDER BY id ASC');
+        const { rows } = await pool.query('SELECT * FROM enseignants');
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });

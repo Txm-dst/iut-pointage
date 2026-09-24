@@ -167,13 +167,13 @@ app.post('/api/etudiants', async (req, res) => {
 
 // --- ROUTE 5 : CRÉATION ENSEIGNANT ---
 app.post('/api/professeurs', async (req, res) => {
-    const { nom, prenom, numero_etu, id_nfc, id_boitier } = req.body;
+    const { id_enseignant, nom, prenom, id_nfc, id_boitier } = req.body;
     try {
         const query = `
-            INSERT INTO enseignants (nom, prenom, numero_etu, id_nfc, id_boitier)
+            INSERT INTO enseignants (id_enseignant, nom, prenom, id_nfc, id_boitier)
             VALUES ($1, $2, $3, $4, $5) RETURNING *;
         `;
-        const { rows } = await pool.query(query, [nom, prenom, numero_etu, id_nfc, id_boitier || null]);
+        const { rows } = await pool.query(query, [id_enseignant, nom, prenom, id_nfc, id_boitier || null]);
         console.log('[BDD] Enseignant créé :', rows[0]);
         res.status(201).json(rows[0]);
     } catch (err) {

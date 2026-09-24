@@ -96,7 +96,7 @@ app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
     console.log(`[POINTAGE REÇU] Badge UID: ${nfc_code} depuis Boîtier: ${boitier_id}`);
 
     try {
-        // 1. Recherche de l'étudiant (on récupère id ou id_etudiant selon ta structure, ici on gère large)
+        // 1. Recherche de l'étudiant
         const etuRes = await pool.query('SELECT * FROM etudiants WHERE id_nfc = $1', [nfc_code]);
         let id_etudiant = null;
         if (etuRes.rows.length > 0) {
@@ -107,11 +107,11 @@ app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
         if (!id_etudiant) {
             const profRes = await pool.query('SELECT * FROM enseignants WHERE id_nfc = $1', [nfc_code]);
             if (profRes.rows.length > 0) {
-                id_etudiant = profRes.rows[0].id || profRes.rows[0].id_enseignant;
+                id_etudiant = profRes.rows[0].id_enseignant; // Utilise la bonne colonne de la table enseignants
             }
         }
 
-        // 3. Insertion dans la table pointages (en s'adaptant aux colonnes standard)
+        // 3. Insertion dans la table pointages
         const insertQuery = `
             INSERT INTO pointages (id_badge, horodatage, id_etudiant, id_boitier)
             VALUES ($1, COALESCE($2::timestamp, NOW()), $3, $4)
@@ -141,7 +141,8 @@ app.get('/api/etudiants', async (req, res) => {
 
 app.get('/api/professeurs', async (req, res) => {
     try {
-        const { rows } = await pool.query('SELECT * FROM enseignants');
+        // On trie bien par id_enseignant puisque c'est le nom de la colonne dans Supabase
+        const { rows } = await pool.query('SELECT * FROM enseignants ORDER BY id_enseignant ASC');
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -167,13 +168,14 @@ app.post('/api/etudiants', async (req, res) => {
 
 // --- ROUTE 5 : CRÉATION ENSEIGNANT ---
 app.post('/api/professeurs', async (req, res) => {
-    const { id_enseignant, nom, prenom, id_nfc, id_boitier } = req.body;
+    // id_enseignant est omis car auto-incrémenté par Supabase
+    const { nom, prenom, id_nfc, id_boitier } = req.body;
     try {
         const query = `
-            INSERT INTO enseignants (id_enseignant, nom, prenom, id_nfc, id_boitier)
-            VALUES ($1, $2, $3, $4, $5) RETURNING *;
+            INSERT INTO enseignants (nom, prenom, id_nfc, id_boitier)
+            VALUES ($1, $2, $3, $4) RETURNING *;
         `;
-        const { rows } = await pool.query(query, [id_enseignant, nom, prenom, id_nfc, id_boitier || null]);
+        const { rows } = await pool.query(query, [nom, prenom, id_nfc, id_boitier || null]);
         console.log('[BDD] Enseignant créé :', rows[0]);
         res.status(201).json(rows[0]);
     } catch (err) {

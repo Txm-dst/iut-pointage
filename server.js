@@ -103,13 +103,8 @@ app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
             id_etudiant = etuRes.rows[0].id || etuRes.rows[0].id_etudiant;
         }
 
-        // 2. Si ce n'est pas un étudiant, recherche dans la table enseignants
-        if (!id_etudiant) {
-            const profRes = await pool.query('SELECT * FROM enseignants WHERE id_nfc = $1', [nfc_code]);
-            if (profRes.rows.length > 0) {
-                id_etudiant = profRes.rows[0].id_enseignant; // Utilise la bonne colonne de la table enseignants
-            }
-        }
+        // 2. Badge d'enseignant : id_etudiant reste NULL (la clé étrangère pointages_id_etudiant_fkey
+        //    pointe vers la table etudiants). Le pointage reste identifiable via id_badge.
 
         // 3. Insertion dans la table pointages
         const insertQuery = `

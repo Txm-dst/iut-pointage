@@ -418,3 +418,5 @@ input:focus, select:focus {
 .sp-liste time { font-weight: 700; color: var(--green-700); }
 .sp-absents li { color: var(--slate-600); }
 .sp-vide { color: var(--slate-400); font-size: 14px; }
+.sp-chip-retard { background: var(--amber-100); color: #B7791F; }
+.sp-liste time.sp-retard { color: #B7791F; }

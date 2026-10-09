@@ -419,6 +419,7 @@
       précédent / début du suivant), c'est le cours qui va commencer qui l'emporte.
       ========================================================== */
    const AVANCE_BADGE_MS = 15 * 60 * 1000;
+   const RETARD_APRES_MS = 10 * 60 * 1000; // badge plus de 10 min après le début = retard
    let seanceOuverte = null;
    
    function groupeConcerne(groupeEtudiant, cibles) {
@@ -482,22 +483,35 @@
            });
    
            const concernes = etudiants.filter(e => e.role === 'eleve' && groupeConcerne(e.Groupe, s.cibles));
-           const absents = concernes.filter(e => !presents.has(String(e.id_nfc)));
+           const manquants = concernes.filter(e => !presents.has(String(e.id_nfc)));
            const liste = [...presents.values()].sort((x, y) => x.ts - y.ts);
+           const finie = Date.now() >= s.fin.getTime();
+           const seuilRetard = s.debut.getTime() + RETARD_APRES_MS;
+           const nbRetards = liste.filter(x => x.ts > seuilRetard).length;
    
            document.getElementById('sp-resume').innerHTML =
                `<span class="sp-chip sp-chip-ok">${liste.length} présent${liste.length > 1 ? 's' : ''}</span>` +
-               `<span class="sp-chip sp-chip-ko">${absents.length} absent${absents.length > 1 ? 's' : ''}</span>` +
+               (nbRetards ? `<span class="sp-chip sp-chip-retard">${nbRetards} en retard</span>` : '') +
+               (finie
+                   ? `<span class="sp-chip sp-chip-ko">${manquants.length} absent${manquants.length > 1 ? 's' : ''}</span>`
+                   : `<span class="sp-chip">${manquants.length} pas encore arrivé${manquants.length > 1 ? 's' : ''}</span>`) +
                `<span class="sp-chip">${concernes.length} inscrits</span>`;
    
            const ligne = (e, extra) => `<li><span>${escapeHtml(e.Nom)} ${escapeHtml(e.Prenom)}` +
                ` <small>${escapeHtml(e.Groupe)}</small></span>${extra}</li>`;
+           const heure = x => {
+               const h = fmtHeure.format(new Date(x.ts));
+               return x.ts > seuilRetard
+                   ? `<time class="sp-retard">${h} · retard</time>`
+                   : `<time>${h}</time>`;
+           };
            corps.innerHTML =
                `<h3>Présents</h3><ul class="sp-liste">` +
-               (liste.map(x => ligne(x.etu, `<time>${fmtHeure.format(new Date(x.ts))}</time>`)).join('') ||
+               (liste.map(x => ligne(x.etu, heure(x))).join('') ||
                    '<li class="sp-vide">Aucun badge pour ce cours.</li>') +
-               `</ul><h3>Absents</h3><ul class="sp-liste sp-absents">` +
-               (absents.map(e => ligne(e, '')).join('') || '<li class="sp-vide">Aucun absent.</li>') + `</ul>`;
+               `</ul><h3>${finie ? 'Absents' : 'Pas encore arrivés'}</h3><ul class="sp-liste sp-absents">` +
+               (manquants.map(e => ligne(e, '')).join('') ||
+                   `<li class="sp-vide">${finie ? 'Aucun absent.' : 'Tout le monde est là.'}</li>`) + `</ul>`;
        } catch (err) {
            console.error('Panneau séance :', err);
            corps.innerHTML = '<p class="sp-vide">Impossible de charger les pointages.</p>';

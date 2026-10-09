@@ -122,7 +122,7 @@ app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
         const etuRes = await pool.query('SELECT * FROM etudiants WHERE id_nfc = $1', [nfc_code]);
         let id_etudiant = null;
         if (etuRes.rows.length > 0) {
-            id_etudiant = etuRes.rows[0].id || etuRes.rows[0].id_etudiant;
+            id_etudiant = etuRes.rows[0].id_etudiants ?? etuRes.rows[0].id ?? etuRes.rows[0].id_etudiant;
         }
 
         // 2. Badge d'enseignant : id_etudiant reste NULL (la clé étrangère pointages_id_etudiant_fkey
@@ -235,6 +235,35 @@ app.post('/api/professeurs', async (req, res) => {
         res.status(201).json(rows[0]);
     } catch (err) {
         console.error('Erreur création enseignant BDD :', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- SUPPRESSION ÉTUDIANT / ENSEIGNANT ---
+// Les pointages déjà enregistrés sont conservés (id_badge) : on détache seulement la clé étrangère.
+app.delete('/api/etudiants/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
+    try {
+        await pool.query('UPDATE pointages SET id_etudiant = NULL WHERE id_etudiant = $1', [id]);
+        const { rowCount } = await pool.query('DELETE FROM etudiants WHERE id_etudiants = $1', [id]);
+        if (rowCount === 0) return res.status(404).json({ error: 'introuvable' });
+        res.json({ status: 'success' });
+    } catch (err) {
+        console.error('Erreur suppression étudiant :', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/professeurs/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' });
+    try {
+        const { rowCount } = await pool.query('DELETE FROM enseignants WHERE id_enseignant = $1', [id]);
+        if (rowCount === 0) return res.status(404).json({ error: 'introuvable' });
+        res.json({ status: 'success' });
+    } catch (err) {
+        console.error('Erreur suppression enseignant :', err.message);
         res.status(500).json({ error: err.message });
     }
 });

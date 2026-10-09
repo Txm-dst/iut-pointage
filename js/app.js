@@ -128,7 +128,7 @@
            })) : [];
    
            const profs = Array.isArray(profData) ? profData.map(p => ({
-               id_etudiants: p.id || p.id_enseignants,
+               id_etudiants: p.id_enseignant ?? p.id,
                Numero_etu: p.numero_etu || p.Numero_etu || 'P-001',
                Nom: p.nom || p.Nom,
                Prenom: p.prenom || p.Prenom,
@@ -640,7 +640,7 @@
                ${cellInfoSpé}
                <td><code>${escapeHtml(e.id_nfc)}</code></td>
                <td>
-                   <button class="btn btn-danger" onclick="deleteStudent(${e.id_etudiants})">Supprimer</button>
+                   <button class="btn btn-danger" onclick="deleteStudent(${e.id_etudiants}, '${e.role}')">Supprimer</button>
                </td>
            </tr>`;
        }).join('');
@@ -694,9 +694,18 @@
        }
    }
    
-   function deleteStudent(id) {
-       etudiants = etudiants.filter(e => e.id_etudiants !== id);
-       renderManagementTable();
+   async function deleteStudent(id, role) {
+       const nom = role === 'prof' ? 'professeurs' : 'etudiants';
+       if (!confirm('Supprimer définitivement cette personne ?')) return;
+       try {
+           const res = await fetch(`/api/${nom}/${id}`, { method: 'DELETE' });
+           if (!res.ok) throw new Error('HTTP ' + res.status);
+           etudiants = etudiants.filter(e => !(e.id_etudiants === id && e.role === role));
+           renderManagementTable();
+       } catch (err) {
+           console.error('Suppression :', err);
+           alert('Suppression impossible : ' + err.message);
+       }
    }
    
    function simulateNFCScan() {

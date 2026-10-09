@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <script>
+        // On vérifie la connexion avant même d'afficher la page, pour éviter un flash de contenu
+        if (sessionStorage.getItem('iutAuth') !== '1') { location.replace('index.html'); }
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pointages — IUT Pointage</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Librairie pour parser le format iCal/ICS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ical.js/1.5.0/ical.min.js"></script>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="brand"><span class="brand-mark">IUT</span> IUT Pointage</div>
+        <div class="nav-links">
+            <a class="nav-link" href="edt.html">🕒 Emploi du temps</a>
+            <a class="nav-link nav-amber-active" href="pointages.html">📋 Pointages</a>
+            <a class="nav-link" href="recherche.html">🔍 Recherche</a>
+            <a class="nav-link" href="gestion.html">👥 Gestion des étudiants</a>
+        </div>
+        <button class="btn btn-danger" onclick="logout()">Déconnexion</button>
+    </nav>
+
+    <header class="page-hero page-hero-amber">
+        <div class="page-hero-inner">
+            <span class="page-hero-icon">📋</span>
+            <div>
+                <h1>Consultation des pointages</h1>
+                <p>Filtrez par étudiant, groupe, enseignement, salle, enseignant, date et heure. Les filtres se combinent.</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="content">
+        <div class="card">
+            <div class="pt-filtres">
+                <div><label for="pt-texte">Étudiant</label>
+                    <input type="text" id="pt-texte" placeholder="Nom, prénom, n° étu, badge…" oninput="appliquerFiltresPointages()"></div>
+                <div><label for="pt-groupe">Groupe</label>
+                    <select id="pt-groupe" onchange="appliquerFiltresPointages()"></select></div>
+                <div><label for="pt-cours">Enseignement</label>
+                    <select id="pt-cours" onchange="appliquerFiltresPointages()"></select></div>
+                <div><label for="pt-salle">Salle</label>
+                    <select id="pt-salle" onchange="appliquerFiltresPointages()"></select></div>
+                <div><label for="pt-prof">Enseignant</label>
+                    <select id="pt-prof" onchange="appliquerFiltresPointages()"></select></div>
+                <div><label for="pt-statut">Statut</label>
+                    <select id="pt-statut" onchange="appliquerFiltresPointages()">
+                        <option value="">Tous</option>
+                        <option value="ok">À l'heure</option>
+                        <option value="retard">En retard</option>
+                        <option value="sans">Sans cours associé</option>
+                    </select></div>
+                <div><label for="pt-date-debut">Du</label>
+                    <input type="date" id="pt-date-debut" onchange="rafraichirPointages()"></div>
+                <div><label for="pt-date-fin">Au</label>
+                    <input type="date" id="pt-date-fin" onchange="rafraichirPointages()"></div>
+                <div><label for="pt-heure-debut">De (heure)</label>
+                    <input type="time" id="pt-heure-debut" onchange="appliquerFiltresPointages()"></div>
+                <div><label for="pt-heure-fin">À (heure)</label>
+                    <input type="time" id="pt-heure-fin" onchange="appliquerFiltresPointages()"></div>
+            </div>
+            <div class="pt-barre">
+                <button class="btn btn-secondary" onclick="reinitialiserFiltresPointages()">Réinitialiser</button>
+                <button class="btn btn-secondary" onclick="rafraichirPointages()">🔄 Actualiser</button>
+                <strong id="pt-compteur"></strong>
+                <span id="pt-status" class="status-text"></span>
+            </div>
+            <div class="pt-table-wrap">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th><th>Heure</th><th>Étudiant</th><th>N° étu</th><th>Groupe</th>
+                            <th>Enseignement</th><th>Salle</th><th>Enseignant</th><th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pointages-table">
+                        <tr><td colspan="9" style="text-align:center;">Chargement…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

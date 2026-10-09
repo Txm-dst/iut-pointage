@@ -294,7 +294,8 @@
            .map(c => ({ ...c, cibles: [...c.cibles].sort() }))
            .sort((a, b) => a.debut - b.debut);
    
-       if (premierChargement) {
+       const surPageEdt = !!document.getElementById('seances-table');
+       if (premierChargement && surPageEdt) {
            premierChargement = false;
            const aDesCours = tousLesCoursExtraits.some(c => c.jour === jourSelectionne);
            if (!aDesCours) {
@@ -304,8 +305,10 @@
            afficherJour();
        }
    
-       updateEDTGroupDropdownOptions();
-       applyEDTFilters();
+       if (surPageEdt) {
+           updateEDTGroupDropdownOptions();
+           applyEDTFilters();
+       }
    }
    
    /* ==========================================================
@@ -528,6 +531,157 @@
    
    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fermerSeance(); });
    
+
+   /* ==========================================================
+      PAGE POINTAGES : consultation + filtres combinables
+      Chaque pointage est relié à l'étudiant (via le badge) puis au cours de l'EDT
+      (groupe + heure, même règle que le panneau de l'EDT).
+      ========================================================== */
+   let lignesPointages = [];
+   let minuteurPointages = null;
+   const MAX_LIGNES = 500;
+   const fmtDateCourte = new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric' });
+   
+   async function chargerEDTPourPointages() {
+       try {
+           const res = await fetch(API_URL);
+           if (!res.ok) throw new Error('HTTP ' + res.status);
+           traiterEmploiDuTemps(await res.text());
+       } catch (err) {
+           console.error('EDT indisponible :', err);
+           const el = document.getElementById('pt-status');
+           if (el) el.textContent = "EDT indisponible : les pointages s'affichent sans cours associé.";
+       }
+   }
+   
+   function remplirSelect(id, valeurs, libelleTous) {
+       const sel = document.getElementById(id);
+       const courant = sel.value;
+       sel.innerHTML = `<option value="">${libelleTous}</option>` +
+           valeurs.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+       sel.value = valeurs.includes(courant) ? courant : '';
+   }
+   
+   async function initPointagesPage() {
+       const aujourdhui = cleJour(new Date());
+       document.getElementById('pt-date-debut').value = decalerCle(aujourdhui, -7);
+       document.getElementById('pt-date-fin').value = aujourdhui;
+   
+       await Promise.all([loadEtudiants(), chargerEDTPourPointages()]);
+   
+       const tri = (arr) => [...new Set(arr.filter(Boolean))].sort((x, y) => x.localeCompare(y, 'fr'));
+       remplirSelect('pt-groupe', tri(etudiants.filter(e => e.role === 'eleve').map(e => e.Groupe)), 'Tous les groupes');
+       remplirSelect('pt-cours', tri(tousLesCoursExtraits.map(c => c.cours)), 'Tous les enseignements');
+       remplirSelect('pt-salle', tri(tousLesCoursExtraits.map(c => c.salle)), 'Toutes les salles');
+       remplirSelect('pt-prof', tri(tousLesCoursExtraits.map(c => c.professeur)), 'Tous les enseignants');
+   
+       await rafraichirPointages();
+   }
+   
+   async function rafraichirPointages() {
+       const du = document.getElementById('pt-date-debut').value;
+       const au = document.getElementById('pt-date-fin').value;
+       if (!du || !au) return;
+       const corps = document.getElementById('pointages-table');
+       try {
+           // marge d'un jour de chaque côté (UTC vs Paris), le tri exact se fait ensuite sur la date de Paris
+           const debut = Date.parse(du + 'T00:00:00Z') - 86400000;
+           const fin = Date.parse(au + 'T23:59:59Z') + 86400000;
+           const res = await fetch(`/api/pointages?debut=${debut}&fin=${fin}`);
+           if (!res.ok) throw new Error('HTTP ' + res.status);
+           const pointages = await res.json();
+   
+           const parBadge = new Map(etudiants.filter(e => e.id_nfc).map(e => [String(e.id_nfc), e]));
+           lignesPointages = pointages.map(p => {
+               const personne = parBadge.get(String(p.id_badge));
+               const ligne = {
+                   ts: p.ts, jour: cleJour(new Date(p.ts)), heure: fmtHeure.format(new Date(p.ts)),
+                   badge: String(p.id_badge), boitier: p.id_boitier, personne,
+                   seance: null, retard: false
+               };
+               if (personne && personne.role === 'eleve') {
+                   ligne.seance = seanceDuBadge(p.ts, personne.Groupe);
+                   ligne.retard = !!ligne.seance && p.ts > seuilRetardSeance(ligne.seance);
+               }
+               return ligne;
+           });
+           appliquerFiltresPointages();
+       } catch (err) {
+           console.error('Pointages :', err);
+           corps.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#EF4444;">Impossible de charger les pointages.</td></tr>';
+       }
+   }
+   
+   function appliquerFiltresPointages() {
+       const val = id => document.getElementById(id).value;
+       const du = val('pt-date-debut'), au = val('pt-date-fin');
+       const hDu = val('pt-heure-debut'), hAu = val('pt-heure-fin');
+       const texte = val('pt-texte').trim().toLowerCase();
+       const groupe = val('pt-groupe'), cours = val('pt-cours'), salle = val('pt-salle'), prof = val('pt-prof');
+       const statut = val('pt-statut');
+       const cibleGroupe = groupe ? calculerCibles(groupe) : null;
+   
+       const liste = lignesPointages.filter(l => {
+           if (du && l.jour < du) return false;
+           if (au && l.jour > au) return false;
+           if (hDu && l.heure < hDu) return false;
+           if (hAu && l.heure > hAu) return false;
+           if (texte) {
+               const p = l.personne;
+               const hay = p ? `${p.Nom} ${p.Prenom} ${p.Prenom} ${p.Nom} ${p.Numero_etu} ${l.badge}` : l.badge;
+               if (!hay.toLowerCase().includes(texte)) return false;
+           }
+           if (cibleGroupe) {
+               if (!l.personne || l.personne.role !== 'eleve') return false;
+               if (!calculerCibles(l.personne.Groupe).some(f => cibleGroupe.includes(f))) return false;
+           }
+           if (cours && (!l.seance || l.seance.cours !== cours)) return false;
+           if (salle && (!l.seance || l.seance.salle !== salle)) return false;
+           if (prof && (!l.seance || l.seance.professeur !== prof)) return false;
+           if (statut === 'retard' && !l.retard) return false;
+           if (statut === 'ok' && (!l.seance || l.retard)) return false;
+           if (statut === 'sans' && l.seance) return false;
+           return true;
+       }).sort((x, y) => y.ts - x.ts);
+   
+       document.getElementById('pt-compteur').textContent =
+           `${liste.length} pointage${liste.length > 1 ? 's' : ''}` + (liste.length > MAX_LIGNES ? ` (${MAX_LIGNES} affichés)` : '');
+   
+       const corps = document.getElementById('pointages-table');
+       if (liste.length === 0) {
+           corps.innerHTML = '<tr><td colspan="9" style="text-align:center;">Aucun pointage pour ces filtres.</td></tr>';
+           return;
+       }
+       corps.innerHTML = liste.slice(0, MAX_LIGNES).map(l => {
+           const p = l.personne, s = l.seance;
+           const nom = p ? `${escapeHtml(p.Nom)} ${escapeHtml(p.Prenom)}` : `<em>Badge inconnu</em> <small>${escapeHtml(l.badge)}</small>`;
+           const statutHtml = p && p.role === 'prof' ? '<span class="sp-chip">Enseignant</span>'
+               : !s ? '<span class="sp-chip">Sans cours</span>'
+               : l.retard ? '<span class="sp-chip sp-chip-retard">Retard</span>'
+               : '<span class="sp-chip sp-chip-ok">À l\'heure</span>';
+           return `<tr>
+               <td>${fmtDateCourte.format(new Date(l.ts))}</td>
+               <td><strong>${l.heure}</strong></td>
+               <td>${nom}</td>
+               <td>${p && p.role === 'eleve' ? escapeHtml(p.Numero_etu) : ''}</td>
+               <td>${p && p.role === 'eleve' ? `<span class="badge-groupe">${escapeHtml(p.Groupe)}</span>` : ''}</td>
+               <td>${s ? escapeHtml(s.cours) : '—'}</td>
+               <td>${s && s.salle ? `<code>${escapeHtml(s.salle)}</code>` : '—'}</td>
+               <td>${s ? escapeHtml(s.professeur) : '—'}</td>
+               <td>${statutHtml}</td>
+           </tr>`;
+       }).join('');
+   }
+   
+   function reinitialiserFiltresPointages() {
+       ['pt-texte', 'pt-groupe', 'pt-cours', 'pt-salle', 'pt-prof', 'pt-statut', 'pt-heure-debut', 'pt-heure-fin']
+           .forEach(id => { document.getElementById(id).value = ''; });
+       const aujourdhui = cleJour(new Date());
+       document.getElementById('pt-date-debut').value = decalerCle(aujourdhui, -7);
+       document.getElementById('pt-date-fin').value = aujourdhui;
+       rafraichirPointages();
+   }
+   
    /* ==========================================================
       RECHERCHE
       ========================================================== */
@@ -749,6 +903,7 @@
    
    document.addEventListener('DOMContentLoaded', () => {
        if (document.getElementById('seances-table')) initEdtPage();
+       else if (document.getElementById('pointages-table')) initPointagesPage();
        else if (document.getElementById('add-student-form')) initGestionPage();
        else if (document.getElementById('student-search-table')) initReecherchePage();
    
@@ -763,6 +918,7 @@
            socket.on('nfc-scan', (data) => {
                console.log('Badge NFC capturé :', data.uid);
                if (typeof rafraichirSeance === 'function') rafraichirSeance();
+               if (typeof rafraichirPointages === 'function') rafraichirPointages();
                const inputNFC = document.getElementById('new-id-nfc');
                if (inputNFC) {
                    inputNFC.value = data.uid;

@@ -420,3 +420,14 @@ input:focus, select:focus {
 .sp-vide { color: var(--slate-400); font-size: 14px; }
 .sp-chip-retard { background: var(--amber-100); color: #B7791F; }
 .sp-liste time.sp-retard { color: #B7791F; }
+
+/* ==========================================================
+   PAGE POINTAGES
+   ========================================================== */
+.nav-link.nav-amber-active { background: var(--amber-100); color: #B7791F; }
+.page-hero-amber { background: linear-gradient(120deg, #D98A0B, var(--amber-600)); }
+.pt-filtres { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.pt-filtres label { display: block; font-weight: 700; font-size: 0.8rem; margin-bottom: 5px; color: var(--slate-600); }
+.pt-filtres input, .pt-filtres select { width: 100%; }
+.pt-barre { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+.pt-table-wrap { overflow-x: auto; }

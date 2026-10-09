@@ -177,6 +177,7 @@ app.get('/api/pointages', async (req, res) => {
             FROM pointages
             WHERE EXTRACT(EPOCH FROM horodatage) * 1000 BETWEEN $1 AND $2
             ORDER BY horodatage ASC
+            LIMIT 20000
         `, [debut, fin]);
         res.json(rows.map(r => ({ ...r, ts: Number(r.ts) })));
     } catch (err) {

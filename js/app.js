@@ -705,6 +705,185 @@
        rafraichirPointages();
    }
    
+
+   /* ==========================================================
+      PAGE STATISTIQUES
+      Présences calculées comme dans le panneau de l'EDT : premier badgeage de chaque étudiant
+      par cours (groupe + heure). Taux de présence = présents / inscrits, sur les cours terminés
+      pour lesquels au moins un badge a été passé (un cours sans aucun badge est ignoré).
+      ========================================================== */
+   const COULEUR_OK = '#2a78d6';
+   const COULEUR_RETARD = '#eb6834';
+   let periodeStats = 30;
+   const graphiquesStats = {};
+   
+   async function initStatsPage() {
+       await Promise.all([loadEtudiants(), chargerEDTPourPointages()]);
+       const groupes = [...new Set(etudiants.filter(e => e.role === 'eleve').map(e => e.Groupe).filter(Boolean))]
+           .sort((x, y) => x.localeCompare(y, 'fr'));
+       remplirSelect('st-groupe', groupes, 'Tous les groupes');
+       await calculerStats();
+   }
+   
+   function changerPeriodeStats(jours) {
+       periodeStats = jours;
+       document.querySelectorAll('#st-periodes button').forEach(b =>
+           b.classList.toggle('actif', Number(b.dataset.jours) === jours));
+       calculerStats();
+   }
+   
+   function dessinerGraphique(id, config) {
+       if (graphiquesStats[id]) graphiquesStats[id].destroy();
+       const canvas = document.getElementById(id);
+       graphiquesStats[id] = new Chart(canvas, config);
+   }
+   
+   function optionsGraphique(extra = {}) {
+       return {
+           responsive: true,
+           maintainAspectRatio: false,
+           animation: { duration: 250 },
+           plugins: { legend: { display: false }, ...(extra.plugins || {}) },
+           ...Object.fromEntries(Object.entries(extra).filter(([k]) => k !== 'plugins'))
+       };
+   }
+   
+   async function calculerStats() {
+       const vide = document.getElementById('st-vide');
+       try {
+           const aujourdhui = cleJour(new Date());
+           const debutCle = decalerCle(aujourdhui, -periodeStats);
+           const res = await fetch(`/api/pointages?debut=${Date.parse(debutCle + 'T00:00:00Z') - 86400000}&fin=${Date.now() + 86400000}`);
+           if (!res.ok) throw new Error('HTTP ' + res.status);
+           const pointages = (await res.json()).sort((x, y) => x.ts - y.ts);
+   
+           const groupe = document.getElementById('st-groupe').value;
+           const cible = groupe ? calculerCibles(groupe) : null;
+           const eleves = etudiants.filter(e => e.role === 'eleve' && e.id_nfc &&
+               (!cible || calculerCibles(e.Groupe).some(f => cible.includes(f))));
+           const parBadge = new Map(eleves.map(e => [String(e.id_nfc), e]));
+   
+           // séance -> (badge -> heure du premier badgeage)
+           const presences = new Map();
+           pointages.forEach(p => {
+               const e = parBadge.get(String(p.id_badge));
+               if (!e) return;
+               const s = seanceDuBadge(p.ts, e.Groupe);
+               if (!s || s.jour < debutCle) return;
+               if (!presences.has(s)) presences.set(s, new Map());
+               const m = presences.get(s);
+               if (!m.has(String(p.id_badge))) m.set(String(p.id_badge), p.ts);
+           });
+   
+           // Badgeages : par jour, par écart avec le début du cours
+           const jours = [];
+           for (let j = debutCle; j <= aujourdhui; j = decalerCle(j, 1)) jours.push(j);
+           const parJour = new Map(jours.map(j => [j, { ok: 0, retard: 0 }]));
+           const tranches = [0, 0, 0, 0, 0, 0];
+           let badgeages = 0, retards = 0;
+           const distincts = new Set();
+           presences.forEach((m, s) => {
+               const seuil = seuilRetardSeance(s);
+               m.forEach((ts, badge) => {
+                   badgeages++;
+                   distincts.add(badge);
+                   const late = ts > seuil;
+                   if (late) retards++;
+                   const jour = parJour.get(cleJour(new Date(ts)));
+                   if (jour) late ? jour.retard++ : jour.ok++;
+                   const delta = (ts - s.debut.getTime()) / 60000;
+                   tranches[delta < -10 ? 0 : delta < 0 ? 1 : delta < 10 ? 2 : delta < 20 ? 3 : delta < 30 ? 4 : 5]++;
+               });
+           });
+   
+           // Présence : cours terminés avec au moins un badge
+           const maintenant = Date.now();
+           let attendus = 0, presents = 0, coursSuivis = 0;
+           const parEns = new Map(), parGroupe = new Map(), absences = new Map();
+           const cumul = (map, cle) => { if (!map.has(cle)) map.set(cle, { att: 0, pres: 0 }); return map.get(cle); };
+           tousLesCoursExtraits.forEach(s => {
+               if (s.jour < debutCle || s.fin.getTime() > maintenant) return;
+               const m = presences.get(s);
+               if (!m || m.size === 0) return;
+               const concernes = eleves.filter(e => groupeConcerne(e.Groupe, s.cibles));
+               if (concernes.length === 0) return;
+               coursSuivis++;
+               concernes.forEach(e => {
+                   const ok = m.has(String(e.id_nfc));
+                   const ens = cumul(parEns, s.cours), grp = cumul(parGroupe, e.Groupe);
+                   attendus++; ens.att++; grp.att++;
+                   if (ok) { presents++; ens.pres++; grp.pres++; }
+                   else absences.set(e, (absences.get(e) || 0) + 1);
+               });
+           });
+   
+           const pct = (a, b) => b ? Math.round(1000 * a / b) / 10 : 0;
+           document.getElementById('kpi-badgeages').textContent = badgeages;
+           document.getElementById('kpi-etudiants').textContent = distincts.size;
+           document.getElementById('kpi-presence').textContent = attendus ? pct(presents, attendus) + ' %' : '—';
+           document.getElementById('kpi-retards').textContent = badgeages ? pct(retards, badgeages) + ' %' : '—';
+           document.getElementById('kpi-cours').textContent = coursSuivis;
+           vide.hidden = badgeages > 0;
+   
+           const fmtJ = new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, day: '2-digit', month: '2-digit' });
+           const etiquettesJours = jours.map(j => fmtJ.format(new Date(j + 'T12:00:00Z')));
+   
+           dessinerGraphique('gr-jours', {
+               type: 'bar',
+               data: { labels: etiquettesJours, datasets: [
+                   { label: "À l'heure", data: jours.map(j => parJour.get(j).ok), backgroundColor: COULEUR_OK, borderRadius: 4, maxBarThickness: 26 },
+                   { label: 'En retard', data: jours.map(j => parJour.get(j).retard), backgroundColor: COULEUR_RETARD, borderRadius: 4, maxBarThickness: 26 }
+               ] },
+               options: optionsGraphique({
+                   plugins: { legend: { display: true, position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } },
+                   scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } }
+               })
+           });
+   
+           dessinerGraphique('gr-arrivee', {
+               type: 'bar',
+               data: { labels: ['> 10 min avant', '0-10 min avant', '0-10 min après', '10-20 min après', '20-30 min après', '> 30 min après'],
+                   datasets: [{ label: 'Badgeages', data: tranches, borderRadius: 4, maxBarThickness: 40,
+                       backgroundColor: tranches.map((_, i) => i <= 2 ? COULEUR_OK : COULEUR_RETARD) }] },
+               options: optionsGraphique({ scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } } })
+           });
+   
+           const barresTaux = (id, map, couleur) => {
+               const lignes = [...map.entries()].filter(([, v]) => v.att > 0)
+                   .map(([nom, v]) => ({ nom, ...v, taux: pct(v.pres, v.att) }))
+                   .sort((x, y) => y.taux - x.taux).slice(0, 10);
+               dessinerGraphique(id, {
+                   type: 'bar',
+                   data: { labels: lignes.map(l => l.nom), datasets: [{ label: 'Présence (%)', data: lignes.map(l => l.taux), backgroundColor: couleur, borderRadius: 4, maxBarThickness: 22 }] },
+                   options: optionsGraphique({
+                       indexAxis: 'y',
+                       plugins: { tooltip: { callbacks: { label: c => `${c.parsed.x} % (${lignes[c.dataIndex].pres} présents / ${lignes[c.dataIndex].att} attendus)` } } },
+                       scales: { x: { min: 0, max: 100, ticks: { callback: v => v + ' %' } }, y: { grid: { display: false } } }
+                   })
+               });
+               return lignes;
+           };
+           const lignesEns = barresTaux('gr-enseignements', parEns, COULEUR_OK);
+           barresTaux('gr-groupes', parGroupe, COULEUR_OK);
+   
+           const topAbs = [...absences.entries()].sort((x, y) => y[1] - x[1]).slice(0, 8);
+           dessinerGraphique('gr-absents', {
+               type: 'bar',
+               data: { labels: topAbs.map(([e]) => `${e.Nom} ${e.Prenom}`), datasets: [{ label: 'Absences', data: topAbs.map(([, n]) => n), backgroundColor: COULEUR_RETARD, borderRadius: 4, maxBarThickness: 22 }] },
+               options: optionsGraphique({ indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } } })
+           });
+   
+           document.getElementById('st-table').innerHTML = [...parEns.entries()]
+               .sort((x, y) => y[1].att - x[1].att)
+               .map(([nom, v]) => `<tr><td>${escapeHtml(nom)}</td><td>${v.pres}</td><td>${v.att}</td><td>${pct(v.pres, v.att)} %</td></tr>`).join('')
+               || '<tr><td colspan="4" style="text-align:center;">Aucune donnée.</td></tr>';
+       } catch (err) {
+           console.error('Stats :', err);
+           vide.hidden = false;
+           vide.textContent = 'Impossible de calculer les statistiques.';
+       }
+   }
+   
    /* ==========================================================
       RECHERCHE
       ========================================================== */
@@ -927,6 +1106,7 @@
    document.addEventListener('DOMContentLoaded', () => {
        if (document.getElementById('seances-table')) initEdtPage();
        else if (document.getElementById('pointages-table')) initPointagesPage();
+       else if (document.getElementById('stats-page')) initStatsPage();
        else if (document.getElementById('add-student-form')) initGestionPage();
        else if (document.getElementById('student-search-table')) initReecherchePage();
    

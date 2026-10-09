@@ -204,6 +204,16 @@ app.get('/api/professeurs', async (req, res) => {
     }
 });
 
+// Le badge passé pour inscrire quelqu'un a été enregistré comme pointage par le boîtier :
+// on supprime les pointages de ce badge de la dernière minute pour qu'il ne compte pas pour un cours.
+async function purgerBadgeInscription(nfc) {
+    if (!nfc) return;
+    await pool.query(
+        "DELETE FROM pointages WHERE id_badge = $1 AND horodatage > (NOW() AT TIME ZONE 'UTC') - interval '1 minute'",
+        [String(nfc)]
+    );
+}
+
 // --- ROUTE 4 : CRÉATION ÉTUDIANT (INSERTION SUPABASE) ---
 app.post('/api/etudiants', async (req, res) => {
     const { nom, prenom, numero_etu, groupe, id_nfc } = req.body;
@@ -213,6 +223,7 @@ app.post('/api/etudiants', async (req, res) => {
             VALUES ($1, $2, $3, $4, $5) RETURNING *;
         `;
         const { rows } = await pool.query(query, [nom, prenom, numero_etu, groupe, id_nfc]);
+        await purgerBadgeInscription(id_nfc);
         console.log('[BDD] Étudiant créé :', rows[0]);
         res.status(201).json(rows[0]);
     } catch (err) {
@@ -231,6 +242,7 @@ app.post('/api/professeurs', async (req, res) => {
             VALUES ($1, $2, $3, $4) RETURNING *;
         `;
         const { rows } = await pool.query(query, [nom, prenom, id_nfc, id_boitier || null]);
+        await purgerBadgeInscription(id_nfc);
         console.log('[BDD] Enseignant créé :', rows[0]);
         res.status(201).json(rows[0]);
     } catch (err) {

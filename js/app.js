@@ -422,6 +422,14 @@
    const RETARD_APRES_MS = 10 * 60 * 1000; // badge plus de 10 min après le début = retard
    let seanceOuverte = null;
    
+   // Cours de 10h00 et 16h00 : pause 9h55-10h10 / 15h55-16h10, on laisse 10 min de plus (retard après 10h20 / 16h20)
+   const DEBUTS_APRES_PAUSE = ['10:00', '16:00'];
+   const MARGE_PAUSE_MS = 10 * 60 * 1000;
+   function seuilRetardSeance(s) {
+       const marge = DEBUTS_APRES_PAUSE.includes(fmtHeure.format(s.debut)) ? MARGE_PAUSE_MS : 0;
+       return s.debut.getTime() + RETARD_APRES_MS + marge;
+   }
+   
    function groupeConcerne(groupeEtudiant, cibles) {
        const feuilles = calculerCibles(groupeEtudiant);
        return feuilles.some(f => cibles.includes(f));
@@ -486,7 +494,7 @@
            const manquants = concernes.filter(e => !presents.has(String(e.id_nfc)));
            const liste = [...presents.values()].sort((x, y) => x.ts - y.ts);
            const finie = Date.now() >= s.fin.getTime();
-           const seuilRetard = s.debut.getTime() + RETARD_APRES_MS;
+           const seuilRetard = seuilRetardSeance(s);
            const nbRetards = liste.filter(x => x.ts > seuilRetard).length;
    
            document.getElementById('sp-resume').innerHTML =

@@ -335,7 +335,8 @@ input:focus, select:focus {
    ========================================================== */
 .edt-filtres { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-bottom: 22px; }
 .edt-filtres label { font-weight: 700; font-size: 0.9rem; margin-right: 8px; }
-.edt-filtres select { width: 280px; min-width: 280px; padding: 14px 16px; font-size: 1rem; }
+.edt-filtres select { width: 230px; min-width: 230px; }
+.edt-filtres #btn-refresh-ade { width: 230px; justify-content: center; }
 
 .status-text { font-size: 0.95rem; font-weight: 700; }
 

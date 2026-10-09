@@ -87,10 +87,32 @@ app.get('/api/edt', async (req, res) => {
     }
 });
 
+// --- HEALTH : test de joignabilité utilisé par le boîtier ---
+app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+// --- LISTE DES BADGES CONNUS (copie locale du boîtier : retour vert/rouge même hors ligne) ---
+app.get('/api/badges', async (req, res) => {
+    try {
+        const { rows } = await pool.query(`
+            SELECT id_nfc FROM etudiants WHERE id_nfc IS NOT NULL
+            UNION
+            SELECT id_nfc FROM enseignants WHERE id_nfc IS NOT NULL
+        `);
+        res.json(rows.map(r => String(r.id_nfc)));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- ROUTE 2 : POINTAGE / SCAN NFC (RASPBERRY PI) ---
+// Idempotente : le boîtier peut renvoyer le même pointage (file hors ligne) sans créer de doublon.
 app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
     const { uid, id_nfc, timestamp, id_boitier } = req.body;
-    const nfc_code = String(uid || id_nfc);
+    const brut = uid ?? id_nfc;
+    if (brut === undefined || brut === null || String(brut).trim() === '') {
+        return res.status(400).json({ error: 'uid manquant' });
+    }
+    const nfc_code = String(brut).trim();
     const boitier_id = id_boitier || 1; // Boîtier 1 par défaut si non spécifié
     
     console.log(`[POINTAGE REÇU] Badge UID: ${nfc_code} depuis Boîtier: ${boitier_id}`);
@@ -105,8 +127,24 @@ app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
 
         // 2. Badge d'enseignant : id_etudiant reste NULL (la clé étrangère pointages_id_etudiant_fkey
         //    pointe vers la table etudiants). Le pointage reste identifiable via id_badge.
+        let reconnu = id_etudiant !== null;
+        if (!reconnu) {
+            const profRes = await pool.query('SELECT 1 FROM enseignants WHERE id_nfc = $1', [nfc_code]);
+            reconnu = profRes.rows.length > 0;
+        }
 
-        // 3. Insertion dans la table pointages
+        // 3. Doublon (même badge + même horodatage + même boîtier) : on confirme sans réinsérer
+        if (timestamp) {
+            const dejaLa = await pool.query(
+                'SELECT * FROM pointages WHERE id_badge = $1 AND horodatage = $2::timestamp AND id_boitier = $3 LIMIT 1',
+                [nfc_code, timestamp, boitier_id]
+            );
+            if (dejaLa.rows.length > 0) {
+                return res.json({ status: 'success', doublon: true, reconnu, data: dejaLa.rows[0] });
+            }
+        }
+
+        // 4. Insertion dans la table pointages
         const insertQuery = `
             INSERT INTO pointages (id_badge, horodatage, id_etudiant, id_boitier)
             VALUES ($1, COALESCE($2::timestamp, NOW()), $3, $4)
@@ -117,7 +155,7 @@ app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
         // Diffusion WebSockets vers l'interface web
         io.emit('nfc-scan', { uid: nfc_code, pointage: result.rows[0] });
 
-        res.json({ status: 'success', data: result.rows[0] });
+        res.json({ status: 'success', reconnu, data: result.rows[0] });
     } catch (err) {
         console.error('Erreur insertion pointage BDD :', err.message);
         res.status(500).json({ error: 'Erreur BDD', details: err.message });

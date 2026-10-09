@@ -605,6 +605,20 @@
                }
                return ligne;
            });
+           // Premier badgeage seulement : un badge répété pour le même cours (ou à moins de 30 min
+           // quand aucun cours n'est trouvé) est marqué « non premier » et masqué par défaut.
+           const vus = new Set(), dernierSansCours = new Map();
+           [...lignesPointages].sort((x, y) => x.ts - y.ts).forEach(l => {
+               if (l.seance) {
+                   const cle = `${l.badge}|${l.seance.debut.getTime()}|${l.seance.cours}`;
+                   l.premier = !vus.has(cle);
+                   vus.add(cle);
+               } else {
+                   const dernier = dernierSansCours.get(l.badge);
+                   l.premier = dernier === undefined || l.ts - dernier >= 30 * 60000;
+                   if (l.premier) dernierSansCours.set(l.badge, l.ts);
+               }
+           });
            appliquerFiltresPointages();
        } catch (err) {
            console.error('Pointages :', err);
@@ -621,7 +635,9 @@
        const statut = val('pt-statut');
        const cibleGroupe = groupe ? calculerCibles(groupe) : null;
    
+       const tous = document.getElementById('pt-tous').checked;
        const liste = lignesPointages.filter(l => {
+           if (!tous && !l.premier) return false;
            if (du && l.jour < du) return false;
            if (au && l.jour > au) return false;
            if (hDu && l.heure < hDu) return false;
@@ -644,8 +660,10 @@
            return true;
        }).sort((x, y) => y.ts - x.ts);
    
+       const masques = tous ? 0 : lignesPointages.filter(l => !l.premier).length;
        document.getElementById('pt-compteur').textContent =
-           `${liste.length} pointage${liste.length > 1 ? 's' : ''}` + (liste.length > MAX_LIGNES ? ` (${MAX_LIGNES} affichés)` : '');
+           `${liste.length} pointage${liste.length > 1 ? 's' : ''}` + (liste.length > MAX_LIGNES ? ` (${MAX_LIGNES} affichés)` : '') +
+           (masques ? ` · ${masques} répétition${masques > 1 ? 's' : ''} masquée${masques > 1 ? 's' : ''}` : '');
    
        const corps = document.getElementById('pointages-table');
        if (liste.length === 0) {
@@ -676,8 +694,13 @@
    function reinitialiserFiltresPointages() {
        ['pt-texte', 'pt-groupe', 'pt-cours', 'pt-salle', 'pt-prof', 'pt-statut', 'pt-heure-debut', 'pt-heure-fin']
            .forEach(id => { document.getElementById(id).value = ''; });
+       document.getElementById('pt-tous').checked = false;
+       periodeRapide(7);
+   }
+   
+   function periodeRapide(jours) {
        const aujourdhui = cleJour(new Date());
-       document.getElementById('pt-date-debut').value = decalerCle(aujourdhui, -7);
+       document.getElementById('pt-date-debut').value = decalerCle(aujourdhui, -jours);
        document.getElementById('pt-date-fin').value = aujourdhui;
        rafraichirPointages();
    }

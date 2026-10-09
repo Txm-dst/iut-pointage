@@ -40,38 +40,51 @@
 
     <main class="content">
         <div class="card">
-            <div class="pt-filtres">
-                <div><label for="pt-texte">Étudiant</label>
-                    <input type="text" id="pt-texte" placeholder="Nom, prénom, n° étu, badge…" oninput="appliquerFiltresPointages()"></div>
-                <div><label for="pt-groupe">Groupe</label>
-                    <select id="pt-groupe" onchange="appliquerFiltresPointages()"></select></div>
-                <div><label for="pt-cours">Enseignement</label>
-                    <select id="pt-cours" onchange="appliquerFiltresPointages()"></select></div>
-                <div><label for="pt-salle">Salle</label>
-                    <select id="pt-salle" onchange="appliquerFiltresPointages()"></select></div>
-                <div><label for="pt-prof">Enseignant</label>
-                    <select id="pt-prof" onchange="appliquerFiltresPointages()"></select></div>
-                <div><label for="pt-statut">Statut</label>
-                    <select id="pt-statut" onchange="appliquerFiltresPointages()">
+            <div class="pt-haut">
+                <div class="pt-recherche">
+                    <span class="pt-loupe">🔍</span>
+                    <input type="text" id="pt-texte" class="pt-champ" placeholder="Rechercher un étudiant (nom, prénom, n° étu, badge)" oninput="appliquerFiltresPointages()">
+                </div>
+                <div class="pt-raccourcis" role="group" aria-label="Période">
+                    <button type="button" onclick="periodeRapide(0)">Aujourd'hui</button>
+                    <button type="button" onclick="periodeRapide(7)">7 jours</button>
+                    <button type="button" onclick="periodeRapide(30)">30 jours</button>
+                </div>
+            </div>
+
+            <div class="pt-grille">
+                <label class="pt-bloc"><span>Groupe</span>
+                    <select id="pt-groupe" class="pt-champ" onchange="appliquerFiltresPointages()"></select></label>
+                <label class="pt-bloc"><span>Enseignement</span>
+                    <select id="pt-cours" class="pt-champ" onchange="appliquerFiltresPointages()"></select></label>
+                <label class="pt-bloc"><span>Salle</span>
+                    <select id="pt-salle" class="pt-champ" onchange="appliquerFiltresPointages()"></select></label>
+                <label class="pt-bloc"><span>Enseignant</span>
+                    <select id="pt-prof" class="pt-champ" onchange="appliquerFiltresPointages()"></select></label>
+                <label class="pt-bloc"><span>Statut</span>
+                    <select id="pt-statut" class="pt-champ" onchange="appliquerFiltresPointages()">
                         <option value="">Tous</option>
                         <option value="ok">À l'heure</option>
                         <option value="retard">En retard</option>
                         <option value="sans">Sans cours associé</option>
-                    </select></div>
-                <div><label for="pt-date-debut">Du</label>
-                    <input type="date" id="pt-date-debut" onchange="rafraichirPointages()"></div>
-                <div><label for="pt-date-fin">Au</label>
-                    <input type="date" id="pt-date-fin" onchange="rafraichirPointages()"></div>
-                <div><label for="pt-heure-debut">De (heure)</label>
-                    <input type="time" id="pt-heure-debut" onchange="appliquerFiltresPointages()"></div>
-                <div><label for="pt-heure-fin">À (heure)</label>
-                    <input type="time" id="pt-heure-fin" onchange="appliquerFiltresPointages()"></div>
+                    </select></label>
+                <label class="pt-bloc"><span>Du</span>
+                    <input type="date" id="pt-date-debut" class="pt-champ" onchange="rafraichirPointages()"></label>
+                <label class="pt-bloc"><span>Au</span>
+                    <input type="date" id="pt-date-fin" class="pt-champ" onchange="rafraichirPointages()"></label>
+                <label class="pt-bloc"><span>De (heure)</span>
+                    <input type="time" id="pt-heure-debut" class="pt-champ" onchange="appliquerFiltresPointages()"></label>
+                <label class="pt-bloc"><span>À (heure)</span>
+                    <input type="time" id="pt-heure-fin" class="pt-champ" onchange="appliquerFiltresPointages()"></label>
             </div>
+
             <div class="pt-barre">
-                <button class="btn btn-secondary" onclick="reinitialiserFiltresPointages()">Réinitialiser</button>
-                <button class="btn btn-secondary" onclick="rafraichirPointages()">🔄 Actualiser</button>
                 <strong id="pt-compteur"></strong>
                 <span id="pt-status" class="status-text"></span>
+                <span class="pt-espace"></span>
+                <label class="pt-toggle"><input type="checkbox" id="pt-tous" onchange="appliquerFiltresPointages()"> Afficher tous les badgeages</label>
+                <button class="btn btn-secondary" onclick="reinitialiserFiltresPointages()">Réinitialiser</button>
+                <button class="btn btn-secondary" onclick="rafraichirPointages()">🔄 Actualiser</button>
             </div>
             <div class="pt-table-wrap">
                 <table class="data-table">

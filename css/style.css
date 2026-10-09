@@ -475,3 +475,9 @@ select.pt-champ { appearance: none; -webkit-appearance: none; padding-right: 34p
 .edt-grille .btn { height: 44px; width: 100%; justify-content: center; }
 .edt-statut { margin: 10px 0 18px; min-height: 1.2em; }
 @media (max-width: 700px) { .edt-grille { grid-template-columns: 1fr; } }
+
+/* Champ numérique (ID boîtier) : même style que les autres champs du formulaire */
+input[type="number"] { width: 100%; padding: 13px 15px; border: 2px solid var(--slate-200); border-radius: var(--radius-sm); background: var(--card); color: var(--ink-900); font: inherit; }
+input[type="number"]:focus { border-color: var(--blue-600); outline: none; box-shadow: 0 0 0 4px rgba(47, 111, 237, 0.15); }
+#groupe-input-container, #boitier-input-container { flex: 1; min-width: 180px; }
+#groupe-input-container input, #boitier-input-container input { width: 100%; }

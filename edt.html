@@ -43,30 +43,23 @@
         <div class="card">
 
             <!-- Filtres -->
-            <div class="edt-filtres">
-                <button id="btn-refresh-ade" class="btn btn-secondary">
-                    <span class="btn-refresh-icon">🔄</span> Actualiser ADE
-                </button>
-
-                <div>
-                    <label for="edt-filter-niveau">Niveau</label>
-                    <select id="edt-filter-niveau" onchange="onNiveauChange()">
+            <div class="edt-grille">
+                <label class="pt-bloc"><span>Niveau</span>
+                    <select id="edt-filter-niveau" class="pt-champ" onchange="onNiveauChange()">
                         <option value="TOUS">Tous les niveaux</option>
                         <option value="BUT1">BUT1</option>
                         <option value="BUT2">BUT2</option>
                         <option value="BUT3">BUT3</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label for="edt-filter-groupe">Groupe / TP</label>
-                    <select id="edt-filter-groupe" onchange="applyEDTFilters()">
+                    </select></label>
+                <label class="pt-bloc"><span>Groupe / TP</span>
+                    <select id="edt-filter-groupe" class="pt-champ" onchange="applyEDTFilters()">
                         <option value="TOUS">Tous les groupes</option>
-                    </select>
-                </div>
-
-                <span id="edt-status" class="status-text"></span>
+                    </select></label>
+                <button id="btn-refresh-ade" class="btn btn-secondary">
+                    <span class="btn-refresh-icon">🔄</span> Actualiser ADE
+                </button>
             </div>
+            <p id="edt-status" class="status-text edt-statut"></p>
 
             <!-- Navigation jour par jour -->
             <div class="edt-nav">

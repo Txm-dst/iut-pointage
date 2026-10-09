@@ -105,6 +105,19 @@
         </div>
     </main>
 
+    <div id="seance-overlay" class="panel-overlay" onclick="fermerSeance()"></div>
+    <aside id="seance-panel" class="side-panel" aria-hidden="true">
+        <div class="side-panel-head">
+            <div>
+                <h2 id="sp-titre">Cours</h2>
+                <p id="sp-sous-titre"></p>
+            </div>
+            <button class="btn btn-secondary" onclick="fermerSeance()" aria-label="Fermer">✕</button>
+        </div>
+        <div id="sp-resume" class="sp-resume"></div>
+        <div id="sp-corps" class="side-panel-body"></div>
+    </aside>
+
     <script src="js/app.js"></script>
 </body>
 </html>

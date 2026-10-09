@@ -162,6 +162,28 @@ app.post(['/api/nfc', '/api/pointage'], async (req, res) => {
     }
 });
 
+// --- POINTAGES : consultation (fenêtre de temps en ms epoch UTC) ---
+// Réponse : id_badge + horodatage en ms (UTC). Le rattachement au cours se fait côté site (EDT ADE).
+app.get('/api/pointages', async (req, res) => {
+    const debut = Number(req.query.debut);
+    const fin = Number(req.query.fin);
+    if (!Number.isFinite(debut) || !Number.isFinite(fin)) {
+        return res.status(400).json({ error: 'debut et fin (ms) requis' });
+    }
+    try {
+        const { rows } = await pool.query(`
+            SELECT id_pointage, id_badge, id_boitier,
+                   (EXTRACT(EPOCH FROM horodatage) * 1000)::bigint AS ts
+            FROM pointages
+            WHERE EXTRACT(EPOCH FROM horodatage) * 1000 BETWEEN $1 AND $2
+            ORDER BY horodatage ASC
+        `, [debut, fin]);
+        res.json(rows.map(r => ({ ...r, ts: Number(r.ts) })));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- ROUTE 3 : LECTURE ÉTUDIANTS / ENSEIGNANTS (SUPABASE) ---
 app.get('/api/etudiants', async (req, res) => {
     try {

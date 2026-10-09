@@ -400,7 +400,7 @@
                `<span class="badge-groupe">${escapeHtml(c)}</span>`
            ).join('');
    
-           return `<tr class="${enCours ? 'seance-en-cours' : ''}">
+           return `<tr class="seance-ligne ${enCours ? 'seance-en-cours' : ''}" onclick="ouvrirSeance(${tousLesCoursExtraits.indexOf(s)})" title="Voir les présents">
                <td>${fmtHeure.format(s.debut)} - ${fmtHeure.format(s.fin)}${enCours ? ' <span class="badge-live">En cours</span>' : ''}</td>
                <td><strong>${escapeHtml(s.cours)}</strong></td>
                <td>${escapeHtml(s.professeur) || "Non précisé"}</td>
@@ -409,6 +409,102 @@
            </tr>`;
        }).join('');
    }
+   
+
+   /* ==========================================================
+      PANNEAU « PRÉSENTS » D'UNE SÉANCE
+      Lien pointage <-> cours : uniquement par groupe de l'étudiant + heure du badge.
+      Un badge compte pour la séance du groupe dont la fenêtre [début - 15 min ; fin]
+      contient l'heure ; si deux fenêtres se chevauchent (ex. 9h55 : fin du cours
+      précédent / début du suivant), c'est le cours qui va commencer qui l'emporte.
+      ========================================================== */
+   const AVANCE_BADGE_MS = 15 * 60 * 1000;
+   let seanceOuverte = null;
+   
+   function groupeConcerne(groupeEtudiant, cibles) {
+       const feuilles = calculerCibles(groupeEtudiant);
+       return feuilles.some(f => cibles.includes(f));
+   }
+   
+   function seanceDuBadge(ts, groupeEtudiant) {
+       const candidates = tousLesCoursExtraits.filter(c =>
+           ts >= c.debut.getTime() - AVANCE_BADGE_MS && ts <= c.fin.getTime() &&
+           groupeConcerne(groupeEtudiant, c.cibles));
+       if (candidates.length === 0) return null;
+       const aVenir = candidates.filter(c => c.debut.getTime() > ts);
+       if (aVenir.length > 0) return aVenir.sort((x, y) => x.debut - y.debut)[0];
+       return candidates.sort((x, y) => y.debut - x.debut)[0];
+   }
+   
+   async function ouvrirSeance(index) {
+       const s = tousLesCoursExtraits[index];
+       if (!s) return;
+       seanceOuverte = s;
+       document.getElementById('sp-titre').textContent = s.cours || 'Cours';
+       document.getElementById('sp-sous-titre').textContent =
+           `${fmtJourLong.format(s.debut)} · ${fmtHeure.format(s.debut)} - ${fmtHeure.format(s.fin)}` +
+           (s.salle ? ` · ${s.salle}` : '') + (s.professeur ? ` · ${s.professeur}` : '');
+       document.getElementById('sp-resume').innerHTML = '';
+       document.getElementById('sp-corps').innerHTML = '<p class="sp-vide">Chargement…</p>';
+       document.getElementById('seance-panel').classList.add('ouvert');
+       document.getElementById('seance-overlay').classList.add('ouvert');
+       document.getElementById('seance-panel').setAttribute('aria-hidden', 'false');
+       await rafraichirSeance();
+   }
+   
+   function fermerSeance() {
+       seanceOuverte = null;
+       document.getElementById('seance-panel').classList.remove('ouvert');
+       document.getElementById('seance-overlay').classList.remove('ouvert');
+       document.getElementById('seance-panel').setAttribute('aria-hidden', 'true');
+   }
+   
+   async function rafraichirSeance() {
+       const s = seanceOuverte;
+       if (!s) return;
+       const corps = document.getElementById('sp-corps');
+       try {
+           if (etudiants.length === 0) await loadEtudiants();
+           const debut = s.debut.getTime() - AVANCE_BADGE_MS;
+           const res = await fetch(`/api/pointages?debut=${debut}&fin=${s.fin.getTime()}`);
+           if (!res.ok) throw new Error('HTTP ' + res.status);
+           const pointages = await res.json();
+           if (s !== seanceOuverte) return;
+   
+           const parBadge = new Map(etudiants.filter(e => e.role === 'eleve' && e.id_nfc)
+               .map(e => [String(e.id_nfc), e]));
+           const presents = new Map(); // id_nfc -> { etu, ts } (premier badge)
+           pointages.forEach(p => {
+               const etu = parBadge.get(String(p.id_badge));
+               if (!etu || presents.has(String(etu.id_nfc))) return;
+               if (seanceDuBadge(p.ts, etu.Groupe) !== s) return;
+               presents.set(String(etu.id_nfc), { etu, ts: p.ts });
+           });
+   
+           const concernes = etudiants.filter(e => e.role === 'eleve' && groupeConcerne(e.Groupe, s.cibles));
+           const absents = concernes.filter(e => !presents.has(String(e.id_nfc)));
+           const liste = [...presents.values()].sort((x, y) => x.ts - y.ts);
+   
+           document.getElementById('sp-resume').innerHTML =
+               `<span class="sp-chip sp-chip-ok">${liste.length} présent${liste.length > 1 ? 's' : ''}</span>` +
+               `<span class="sp-chip sp-chip-ko">${absents.length} absent${absents.length > 1 ? 's' : ''}</span>` +
+               `<span class="sp-chip">${concernes.length} inscrits</span>`;
+   
+           const ligne = (e, extra) => `<li><span>${escapeHtml(e.Nom)} ${escapeHtml(e.Prenom)}` +
+               ` <small>${escapeHtml(e.Groupe)}</small></span>${extra}</li>`;
+           corps.innerHTML =
+               `<h3>Présents</h3><ul class="sp-liste">` +
+               (liste.map(x => ligne(x.etu, `<time>${fmtHeure.format(new Date(x.ts))}</time>`)).join('') ||
+                   '<li class="sp-vide">Aucun badge pour ce cours.</li>') +
+               `</ul><h3>Absents</h3><ul class="sp-liste sp-absents">` +
+               (absents.map(e => ligne(e, '')).join('') || '<li class="sp-vide">Aucun absent.</li>') + `</ul>`;
+       } catch (err) {
+           console.error('Panneau séance :', err);
+           corps.innerHTML = '<p class="sp-vide">Impossible de charger les pointages.</p>';
+       }
+   }
+   
+   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fermerSeance(); });
    
    /* ==========================================================
       RECHERCHE
@@ -597,6 +693,7 @@
        premierChargement = true;
        afficherJour();
        loadADEData();
+       loadEtudiants();
    
        const btnRefresh = document.getElementById('btn-refresh-ade');
        if (btnRefresh) btnRefresh.addEventListener('click', () => loadADEData(true));
@@ -634,6 +731,7 @@
    
            socket.on('nfc-scan', (data) => {
                console.log('Badge NFC capturé :', data.uid);
+               if (typeof rafraichirSeance === 'function') rafraichirSeance();
                const inputNFC = document.getElementById('new-id-nfc');
                if (inputNFC) {
                    inputNFC.value = data.uid;

@@ -84,9 +84,8 @@
                     </div>
                 </div>
 
-                <div class="form-row scan-row">
-                    <input type="text" id="new-id-nfc" placeholder="id_nfc (UID carte)" required>
-                    <button type="button" class="btn btn-secondary" onclick="simulateNFCScan()">Scanner carte NFC</button>
+                <div class="form-row scan-row" id="nfc-row">
+                    <input type="text" id="new-id-nfc" placeholder="id_nfc (passez la carte sur le boîtier)" required>
                 </div>
                 <button type="submit" id="btn-submit-user" class="btn btn-success">Enregistrer l'étudiant</button>
             </form>
@@ -98,13 +97,13 @@
                 <thead>
                     <tr>
                         <th>ID</th>
-                        <th>N° Identifiant</th>
+                        <th id="th-num">N° Identifiant</th>
                         <th>Nom</th>
                         <th>Prénom</th>
                         <th>Rôle</th>
                         <th id="th-groupe">Groupe</th>
                         <th id="th-boitier" style="display: none;">ID Boîtier</th>
-                        <th>ID NFC</th>
+                        <th id="th-nfc">ID NFC</th>
                         <th>Actions</th>
                     </tr>
                 </thead>

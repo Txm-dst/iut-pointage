@@ -950,6 +950,18 @@
        const thBoitier = document.getElementById('th-boitier');
        const inputGroupe = document.getElementById('new-groupe');
    
+       // Professeurs : ni N° identifiant ni badge (certains vacataires n'ont pas de carte)
+       const inputNum = document.getElementById('new-num-etu');
+       const rangeeNfc = document.getElementById('nfc-row');
+       const inputNfc = document.getElementById('new-id-nfc');
+       const estProf = mode === 'prof';
+       inputNum.style.display = estProf ? 'none' : '';
+       inputNum.required = !estProf;
+       rangeeNfc.style.display = estProf ? 'none' : '';
+       inputNfc.required = !estProf;
+       document.getElementById('th-num').style.display = estProf ? 'none' : '';
+       document.getElementById('th-nfc').style.display = estProf ? 'none' : '';
+   
        if (mode === 'prof') {
            containerGroupe.style.display = 'none';
            containerBoitier.style.display = 'block';
@@ -989,12 +1001,12 @@
    
            return `<tr>
                <td>${e.id_etudiants}</td>
-               <td>${escapeHtml(e.Numero_etu)}</td>
+               ${isProf ? '' : `<td>${escapeHtml(e.Numero_etu)}</td>`}
                <td>${escapeHtml(e.Nom)}</td>
                <td>${escapeHtml(e.Prenom)}</td>
                <td>${badgeRole}</td>
                ${cellInfoSpé}
-               <td><code>${escapeHtml(e.id_nfc)}</code></td>
+               ${isProf ? '' : `<td><code>${escapeHtml(e.id_nfc)}</code></td>`}
                <td>
                    <button class="btn btn-danger" onclick="deleteStudent(${e.id_etudiants}, '${e.role}')">Supprimer</button>
                </td>
@@ -1010,9 +1022,9 @@
        const payload = {
            nom: document.getElementById('new-nom').value.trim(),
            prenom: document.getElementById('new-prenom').value.trim(),
-           numero_etu: document.getElementById('new-num-etu').value.trim(),
+           numero_etu: isProfMode ? null : document.getElementById('new-num-etu').value.trim(),
            groupe: isProfMode ? "Enseignant" : document.getElementById('new-groupe').value.trim(),
-           id_nfc: document.getElementById('new-id-nfc').value.trim(),
+           id_nfc: isProfMode ? null : document.getElementById('new-id-nfc').value.trim(),
            id_boitier: isProfMode ? (document.getElementById('new-id-boitier').value.trim() || null) : null
        };
    
@@ -1038,7 +1050,7 @@
                Groupe: payload.groupe,
                id_boitier: payload.id_boitier || 'Non attribué',
                role: currentGestionMode,
-               id_nfc: payload.id_nfc
+               id_nfc: payload.id_nfc || ''
            });
    
            document.getElementById('add-student-form').reset();
@@ -1064,13 +1076,6 @@
        }
    }
    
-   function simulateNFCScan() {
-       const fakeUID = "NFC-" + Math.floor(100000 + Math.random() * 900000);
-       const input = document.getElementById('new-id-nfc');
-       if (input) {
-           input.value = fakeUID;
-       }
-   }
    
    /* ==========================================================
       INIT
